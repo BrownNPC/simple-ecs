@@ -48,7 +48,8 @@ modify components.
 
 For example, you may have a movement system
 that loops over all the entities that
-have a Position and a Velocity component
+have a Position and a Velocity component,
+and then
 adds the Velocity to the Position of the entity
 
 ```go
