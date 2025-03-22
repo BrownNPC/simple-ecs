@@ -16,37 +16,18 @@ game systems in Go
 
 ### What is ECS? (and why you should use it)
 I recommend you watch the first couple minutes of [this](https://youtu.be/9LNgSDP1zrw?t=2m40s)
-video, if you dont prefer reading, feel free to skip around
+video. feel free to skip around
 or watch at 2x speed
 
-ECS stands for entity component system.
-
-some games follow Object Oriented Design,
-where everything in the game is an object (a class)
-and every entity ("living things") uses inheritence
-to build up different types of gameplay.
-
-For example, you may have a class called
-"Entity" which has a position and a sprite.
-
-Then you have a class called **Actor** that inherits from
-"Entity" and this actor has methods for speaking, moving etc.
-
-Also inheriting from the Entity, you can have a
-**Tree** class.
-
-From Actor, we make **Enemy** that has methods
-for enemy behaviour.
-
-This will create a nice hierarchy of inheritence.
-But things may get complex if for example you for example
-want to make an Evil Tree.
 
 
 #### ECS is an alternative to inheritance.
 
 
-Instead of creating this tree of structures, we
+Instead of creating game objects using Object Oriented Design where
+things inherit from each other eg.
+Player inherits from Actor, Actor inherits From Entity,
+we
 think about the **Data**. The goal is to
 seperate the logic from the data.
 This is known as
@@ -74,9 +55,18 @@ that loops over all the entities that
 have a Position and a Velocity component
 adds the Velocity to the Position of the entity
 
+```
+func MovementSystem(entities []entity){
+	for _ ent := range entities{
+		ent.Position.X = ent.Velocity.X
+		ent.Position.Y = ent.Velocity.Y
+	}
+}
+```
+
 ### Why use ECS for writing game systems?
   Because Go does not have inheritance.
-  This language prefers seperating data from
+  The language prefers seperating data from
   logic.
 
 #### How to use Simple ECS for writing systems
@@ -93,12 +83,6 @@ this library is implemented will help us learn it easily.
 
 	an entity is just an index into these arrays
 	So on the X axis there are entities which are just indexes
-
-	The storage struct also has a bitset (like an array of boleans)
-
-	each bit in the bitset corresponds to an entity
-	 the bitset is used for maintaining
-	a record of which entity has the component the storage is storing
 ```go
 // stores slice of components
 type Storage[Component any] struct {
@@ -109,6 +93,11 @@ type Storage[Component any] struct {
 	b   bitset.BitSet
 }
 ```
+	The storage struct also has a bitset (like an array of boleans)
+
+	each bit in the bitset corresponds to an entity
+	 the bitset is used for maintaining
+	a record of which entity has the component the storage is storing
 
 	The pool also has its own bitset that tracks which entities are alive
 
