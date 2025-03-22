@@ -74,7 +74,8 @@ The heart of this ECS is the memory pool
 Think of the pool like a database or a spreadsheet.
 On the Y axis (columns) there are arrays of components
 
-We use a struct called storage to hold the components arrays
+We use a struct called storage to hold the components arrays.
+
 components can be any data type, but they cannot be interfaces
 
 These arrays are pre-allocated to a fixed size provided by the user
