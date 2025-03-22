@@ -70,16 +70,18 @@ func MovementSystem(entities []entity){
 Before we jump into the example, understanding how
 this library is implemented will help us learn it easily.
 
-	The heart of this ECS is the memory pool
-	Think of the pool like a database or a spreadsheet.
-	On the Y axis (columns) there are arrays of components
+The heart of this ECS is the memory pool
+Think of the pool like a database or a spreadsheet.
+On the Y axis (columns) there are arrays of components
 
-	We use a struct called storage to hold the components arrays
-	components can be any data type, but they cannot be interfaces
-	These arrays are pre-allocated to a fixed size provided by the user
+We use a struct called storage to hold the components arrays
+components can be any data type, but they cannot be interfaces
 
-	an entity is just an index into these arrays
-	So on the X axis there are entities which are just indexes
+These arrays are pre-allocated to a fixed size provided by the user
+
+An entity is just an index into these arrays
+
+So on the X axis there are entities which are just indexes
 ```go
 // stores slice of components
 type Storage[Component any] struct {
@@ -90,21 +92,15 @@ type Storage[Component any] struct {
 	b   bitset.BitSet
 }
 ```
-	The storage struct also has a bitset (like an array of boleans)
+The storage struct also has a bitset (like an array of boleans)
 
-	each bit in the bitset corresponds to an entity
-	 the bitset is used for maintaining
-	a record of which entity has the component the storage is storing
+each bit in the bitset corresponds to an entity
+by setting the bit on the bitset, we can keep
+a record of whether an entity has the component added to it
 
-	The pool also has its own bitset that tracks which entities are alive
-
-		there is also a map from entities to a slice of component storages
-
-		we update this map when an entity has a component added to it
-
-		we use this map to go into every storage and zero out the component
-		when an entity is killed.
-    you dont need to worry about how the pool works
+The pool also has its own bitset that tracks which entities are alive
+you dont need to worry about how the pool works, just know that the
+pool is responsible for creating and deleting entities
 
 Now here is an example:
 ```go
@@ -121,7 +117,6 @@ type Vec2 struct {
 }
 
 // components need to be concrete types
-// type Position = Vec2 // is incorrect
 type Position Vec2
 type Velocity Vec2
 
@@ -133,10 +128,10 @@ func main() {
 	for range 1000 {
 		// entities (which are just ids)
 		// should only be created using the pool
-		var e = ecs.NewEntity(pool)
+		var ent = ecs.NewEntity(pool)
 		// add position and
 		// velocity components to the entity
-		ecs.Add2(pool, e,
+		ecs.Add2(pool, ent,
 			Position{},
 			Velocity{
 				X: rand.Float64(),
@@ -175,6 +170,7 @@ func MovementSystem(p *ecs.Pool,
 	}
 }
 ```
+
 
 ### Motivation + Opinion:
   The other ECS libraries seem
