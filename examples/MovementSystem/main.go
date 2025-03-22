@@ -1,7 +1,7 @@
 package main
 
 import (
-	ecs "github.com/BrownNPC/simple-ecs"
+	ecs "github.com/BrownNPC/simple-ecs/ecs"
 	"math/rand"
 )
 
@@ -17,13 +17,16 @@ type Velocity Vec2
 
 func main() {
 	// create a memory pool of component arrays
-	var p = ecs.New(1000)
+	// the pool can hold 1000 entities
+	var pool = ecs.New(1000)
 	// create 1000 entities
 	for range 1000 {
-		var e = ecs.NewEntity(p)
+		// entities (which are just ids)
+		// should only be created using the pool
+		var e = ecs.NewEntity(pool)
 		// add position and
-		// velocity components
-		ecs.Add2(p, e,
+		// velocity components to the entity
+		ecs.Add2(pool, e,
 			Position{},
 			Velocity{
 				X: rand.Float64(),
@@ -32,11 +35,12 @@ func main() {
 	}
 	// run movement system 60 times
 	for range 60 {
-		MovementSystem(p, 1.0/60)
+		MovementSystem(pool, 1.0/60)
 	}
 }
 
-// a system is a regular function
+// a system is a regular function that
+// operates on the components
 func MovementSystem(p *ecs.Pool,
 	deltaTime float64,
 ) {
