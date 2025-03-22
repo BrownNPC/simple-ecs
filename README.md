@@ -125,7 +125,7 @@ Now here is an example:
 package main
 
 import (
-	ecs "github.com/BrownNPC/simple-ecs/ecs"
+	ecs "github.com/BrownNPC/simple-ecs"
 	"math/rand"
 )
 
