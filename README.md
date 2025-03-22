@@ -2,24 +2,20 @@
 dead-simple library for writing
 game systems in Go
 
+### Install
+```go get github.com/BrownNPC/simple-ecs```
+
 ### Simple-ECS Features:
 - Easy syntax / api
 - Good perfomance
 - Easy to understand code (300 lines*)
 - Low level (implement what you need)
 
-### Get started
- - I am a beginner
- - I know what ECS is
-
-
 
 ### What is ECS? (and why you should use it)
 I recommend you watch the first couple minutes of [this](https://youtu.be/9LNgSDP1zrw?t=2m40s)
 video. feel free to skip around
 or watch at 2x speed
-
-
 
 #### ECS is an alternative to inheritance.
 
@@ -55,7 +51,7 @@ that loops over all the entities that
 have a Position and a Velocity component
 adds the Velocity to the Position of the entity
 
-```
+```go
 func MovementSystem(entities []entity){
 	for _ ent := range entities{
 		ent.Position.X = ent.Velocity.X
