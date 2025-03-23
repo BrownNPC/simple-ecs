@@ -5,6 +5,10 @@ game systems in Go
 ### Install
 ```go get github.com/BrownNPC/simple-ecs```
 
+#### Documentation
+[GoDoc can be found here](https://pkg.go.dev/github.com/BrownNPC/simple-ecs#pkg-variables)
+
+
 ### Simple-ECS Features:
 - Easy syntax / api
 - Good perfomance
