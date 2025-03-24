@@ -20,7 +20,7 @@ func main() {
 	// the pool can hold 1000 entities
 	var pool = ecs.New(1000)
 	// create 1000 entities
-	for range 1000 {
+	for i:=0; i<=1000; i++{
 		// entities (which are just ids)
 		// should only be created using the pool
 		var e = ecs.NewEntity(pool)
