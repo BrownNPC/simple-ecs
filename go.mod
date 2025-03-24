@@ -1,3 +1,3 @@
 module github.com/BrownNPC/simple-ecs
 
-go 1.23.5
+go 1.21

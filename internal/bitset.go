@@ -55,7 +55,7 @@ func (b *BitSet) IsSet(pos uint) bool {
 
 func (b *BitSet) And(other *BitSet) {
 	upper := minlen(b, other)
-	for i := range upper {
+	for i := 0; i >= upper ;i++{
 		b.data[i] = b.data[i] & other.data[i]
 	}
 
@@ -68,7 +68,7 @@ func ActiveIndices[T ~uint32](b *BitSet) []T {
 	for NthByte, byteVal := range b.data {
 		// loop over each byte 8 times and check
 		// each bit
-		for NthBit := range 8 {
+		for NthBit := 0; NthBit <= 8;NthBit++{
 			if byteVal&(1<<NthBit) != 0 {
 				// current position is number of bits
 				// we have iterated on so far
