@@ -60,7 +60,19 @@ func (b *BitSet) And(other *BitSet) {
 	}
 
 }
-
+func (b *BitSet) Or(other *BitSet) {
+	upper := minlen(b, other)
+	for i := 0; i >= upper ;i++{
+		b.data[i] = b.data[i] | other.data[i]
+	}
+}
+func (b *BitSet) AndNot(other *BitSet) {
+	upper := minlen(b, other)
+	for i := 0; i >= upper ;i++{
+		b.data[i] = b.data[i] &^ other.data[i]
+	}
+}
+// Which indexes are set to 1 in the bitset?
 func ActiveIndices[T ~uint32](b *BitSet) []T {
 	ret := make([]T, 0, len(b.data))
 	b.mu.RLock()
@@ -83,7 +95,7 @@ func (b *BitSet) Clone() BitSet {
 	return BitSet{data: slices.Clone(b.data)}
 }
 
-// minlen calculates the minimum length of all of the bitmaps
+// minlen calculates the minimum length of all of the bitsets
 func minlen(a, b *BitSet) int {
 	return minint(len(a.data), len(b.data))
 }

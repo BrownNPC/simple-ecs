@@ -34,7 +34,7 @@ func main() {
 			})
 	}
 	// run movement system 60 times
-	for range 60 {
+	for i:=0; i<=60; i++ {
 		MovementSystem(pool, 1.0/60)
 	}
 }
@@ -52,7 +52,7 @@ func MovementSystem(p *ecs.Pool,
 		](p)
 	// get entities (id/index) that have
 	// a position and velocity component
-	for _, ent := range POSITION.Matches(VELOCITY) {
+	for _, ent := range POSITION.And(VELOCITY) {
 		// use the entity to index the
 		// position and velocity slices
 		pos, vel :=

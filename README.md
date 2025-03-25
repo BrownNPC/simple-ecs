@@ -11,9 +11,10 @@ game systems in Go
 
 ### Simple-ECS Features:
 - Easy syntax / api
-- Good perfomance
+- Good perfomance!
 - Easy to understand code (300 lines*)
 - Low level (implement what you need)
+- No Dependencies on other libraries
 
 
 ### What is ECS? (and why you should use it)
@@ -80,7 +81,7 @@ On the Y axis (columns) there are arrays of components
 
 We use a struct called storage to hold the components arrays.
 
-components can be any data type, but they cannot be interfaces
+components can be any data type
 
 These arrays are pre-allocated to a fixed size provided by the user
 
@@ -162,7 +163,7 @@ func MovementSystem(p *ecs.Pool,
 		](p)
 	// get entities (id/index) that have
 	// a position and velocity component
-	for _, ent := range POSITION.Matches(VELOCITY) {
+	for _, ent := range POSITION.And(VELOCITY) {
 		// use the entity to index the
 		// position and velocity slices
 		pos, vel :=
@@ -184,12 +185,18 @@ func MovementSystem(p *ecs.Pool,
   sometimes sacrificing a
   simpler syntax. They also provide features
   I dont need.
-  Some devs put
-  restrictions on the use of
-  runtime reflection for negligible
-  performance gains. And these libraries had
+  And these libraries had
   many ways to do
   the same thing. (eg. Arche has 2 apis)
+
+	But that doesn't mean this library is slow.
+	components are stored in contigious pre-allocated
+	slices of memory, and retreiving of the component
+	storage is an O(1) map lookup (~20 ns).
+
+	Queries are also fast due to the use of Bitsets.
+	queries are just "And" / "AndNot" operations on a couple
+	of integers.
 
   This is just my opinion but most
   games that are made using Go should
@@ -198,10 +205,10 @@ func MovementSystem(p *ecs.Pool,
   to pick Go over C++, C#, Java or Rust is
   because of Go's simplicity.
   
-  Also no hate or anything of that sort
+  no hate or anything of that sort
   is intended towards any developer's work.
   Everyone has their own reasons for writing
-  their own code. I am not claiming that
+  their unique solutions. I am not claiming that
   this is the best ECS for Go. I am only claiming
   that it has a simple API,
   but that could be subjective.
@@ -209,5 +216,3 @@ func MovementSystem(p *ecs.Pool,
 ### Acknowledgements
   Donburi is another library that
   implements ECS with a simple API.
-  But in my opinion this library is
-  simpler.

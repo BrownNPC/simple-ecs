@@ -63,7 +63,7 @@ func playerMovementSystem(p *ecs.Pool) {
 	POSITION, VELOCITY, TAG :=
 		ecs.GetStorage3[Position, Velocity, Tag](p)
 
-	for _, e := range POSITION.Matches(VELOCITY, TAG) {
+	for _, e := range POSITION.And(VELOCITY, TAG) {
 		pos, vel := POSITION.Get(e), VELOCITY.Get(e)
 		tag := TAG.Get(e)
 		if tag != Player {
@@ -88,7 +88,7 @@ func movementSystem(p *ecs.Pool, dt float32) {
 	POSITION, VELOCITY, TAG :=
 		ecs.GetStorage3[Position, Velocity, Tag](p)
 
-	for _, e := range POSITION.Matches(VELOCITY) {
+	for _, e := range POSITION.And(VELOCITY) {
 		pos, vel := POSITION.Get(e), VELOCITY.Get(e)
 		pos.X += vel.X * dt
 		pos.Y += vel.Y * dt
@@ -123,7 +123,7 @@ func spawnSystem(p *ecs.Pool, dt float32) {
 
 func despawnSystem(p *ecs.Pool) {
 	TAG, POSITION := ecs.GetStorage2[Tag, Position](p)
-	for _, e := range TAG.Matches() {
+	for _, e := range TAG.And() {
 		if TAG.Get(e) == Rock {
 			pos := POSITION.Get(e)
 			if pos.Y > 700 {
@@ -136,7 +136,7 @@ func despawnSystem(p *ecs.Pool) {
 func collisionSystem(p *ecs.Pool, player ecs.Entity) {
 	POSITION, TAG :=
 		ecs.GetStorage2[Position, Tag](p)
-	for _, e := range POSITION.Matches(TAG) {
+	for _, e := range POSITION.And(TAG) {
 		if TAG.Get(e) == Player {
 			continue
 		}
@@ -159,7 +159,7 @@ func renderingSystem(p *ecs.Pool) {
 		ecs.GetStorage2[Position, Tag](p)
 
 	// Draw rocks and player
-	for _, e := range POSITION.Matches(TAG) {
+	for _, e := range POSITION.And(TAG) {
 		pos, tag :=
 			POSITION.Get(e), TAG.Get(e)
 		if tag == Rock {

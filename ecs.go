@@ -4,8 +4,6 @@ package ecs
 // this code is MIT licensed.
 import (
 	"fmt"
-	"reflect"
-	"slices"
 	"sync"
 
 	bitset "github.com/BrownNPC/simple-ecs/internal"
@@ -21,6 +19,13 @@ var AutoRegisterComponents = true
 type Entity uint32
 
 // stores slice of components
+/*
+We use a struct called storage to hold the components array.
+this struct also has a bitset where
+each bit in the bitset corresponds to an entity.
+the bitset is used for maintaining
+a record of which entity has the component the storage is storing
+*/
 type Storage[Component any] struct {
 	// slice of components
 	components     []Component
@@ -53,7 +58,7 @@ func (s *Storage[T]) getBitset() *bitset.BitSet {
 //	 entities that have all of these components
 //
 // passing in nil or nothing will return the entities with the component this storage stores
-func (s *Storage[T]) Matches(storages ..._Storage) []Entity {
+func (s *Storage[T]) And(storages ..._Storage) []Entity {
 	mask := s.b.Clone()
 	s.mut.RLock()
 	defer s.mut.RUnlock()
@@ -62,6 +67,27 @@ func (s *Storage[T]) Matches(storages ..._Storage) []Entity {
 			if s != nil {
 				mask.And(s.getBitset())
 			}
+		}
+	}
+	return bitset.ActiveIndices[Entity](&mask)
+}
+
+// takes in other storages and returns
+// entities that exist in this storage but
+// not in the storages passed in
+//
+//		in simple terms:
+//		 entities that have this component
+//	  but not the other ones
+//
+// passing in nil or nothing will return the entities with the component this storage stores
+func (s *Storage[T]) ButNot(storages ..._Storage) []Entity {
+	mask := s.b.Clone()
+	s.mut.RLock()
+	defer s.mut.RUnlock()
+	for _, s := range storages {
+		if s != nil {
+			mask.AndNot(s.getBitset())
 		}
 	}
 	return bitset.ActiveIndices[Entity](&mask)
@@ -98,26 +124,23 @@ func newStorage[T any](size int) *Storage[T] {
 	}
 }
 
-// A pool holds component storages and does book keeping regarding
+// A pool holds component storages and does book keeping of
 // alive and dead entities
 /*
 	Think of the pool like a database.
 	On the Y axis (columns) there are arrays of components
-	components can be any data type, but they cannot be interfaces
+	components can be any data type
 	These arrays are pre-allocated to a fixed size provided by the user
 
 	an entity is just an index into these arrays
 	So on the X axis there are entities which are just indexes
 
-	We use a struct called storage to hold the components array
-	this struct also has a bitset.
-	each bit in the bitset corresponds to an entity
-	 the bitset is used for maintaining
-	a record of which entity has the component the storage is storing
 
 */
 type Pool struct {
-	stores map[reflect.Type]_Storage
+	// we map pointer to type T to the storage of T
+	// *T -> Storage[T]
+	stores map[any]_Storage
 	// used to track components an entity has
 	// we zero out the components when an entity dies
 	// and update this map when a component is added to an entity
@@ -148,7 +171,7 @@ type Pool struct {
 // the pool will NOT grow dynamically
 func New(size int) *Pool {
 	return &Pool{
-		stores:         make(map[reflect.Type]_Storage),
+		stores:         make(map[any]_Storage),
 		componentsUsed: make(map[Entity][]_Storage),
 		size:           size,
 	}
@@ -174,8 +197,6 @@ func NewEntity(p *Pool) Entity {
 }
 
 // give entities back to the pool
-//
-//	ecs.Kill(pool, e,e1,e2)
 func Kill(p *Pool, entities ...Entity) {
 	for _, e := range entities {
 		p.aliveEntities.Unset(uint(e))
@@ -192,6 +213,7 @@ func Kill(p *Pool, entities ...Entity) {
 		}
 		p.componentsUsedMu.Lock()
 		// entity no longer has these components
+		// set slice length to 0
 		p.componentsUsed[e] = p.componentsUsed[e][:0]
 		p.componentsUsedMu.Unlock()
 	}
@@ -201,23 +223,20 @@ func Kill(p *Pool, entities ...Entity) {
 //
 //	will panic if you register components twice
 //
-// if you wish to register interfaces,
-// wrap them in a struct
-//
 // Components cannot be aliases eg.
 //
 //	type Position Vec2 // correct
 //	type Position = Vec2 // incorrect
 func Register[T any](pool *Pool) {
-	var r = getReflectedType[T]()
-	_, ok := pool.stores[r]
+	var nilptr *T
+	_, ok := pool.stores[nilptr]
 	if !ok {
 		pool.componentsUsedMu.Lock()
 		defer pool.componentsUsedMu.Unlock()
-		pool.stores[r] = newStorage[T](pool.size)
+		pool.stores[nilptr] = newStorage[T](pool.size)
 		return
 	}
-	panic(fmt.Sprintln("Component", r, `is already registered 
+	panic(fmt.Sprintln("Component", nilptr, `is already registered 
 If you are using type aliases
 use concrete types instead
 Example:
@@ -260,7 +279,12 @@ func Remove[T any](pool *Pool, e Entity) {
 	// incase the component was added recently
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == store {
-			pool.componentsUsed[e] = slices.Delete(s, i, i)
+			// move the _Storage to the end of the slice and
+			// shrink the slice by one
+			temp := s[len(s)-1]
+			s[len(s)-1] = s[i]
+			s[i] = temp
+			pool.componentsUsed[e] = s[0 : len(s)-2]
 			return
 		}
 	}
@@ -275,16 +299,6 @@ func Has[T any](pool *Pool, e Entity) bool {
 	return st.EntityHasComponent(e)
 }
 
-// return entities that have this component
-//
-//	shorthand for
-//	a := ecs.StorageOf[A]
-//	entities := a.Matches()
-func EntitiesOf[A any](pool *Pool) []Entity {
-	b := bitsetOf[A](pool)
-	return bitset.ActiveIndices[Entity](b)
-}
-
 // storage contains all components of a type
 func GetStorage[A any](pool *Pool) *Storage[A] {
 	st := registerAndGetStorage[A](pool)
@@ -292,29 +306,13 @@ func GetStorage[A any](pool *Pool) *Storage[A] {
 
 }
 
-// return bitset of the storage of this component
-func bitsetOf[T any](pool *Pool) *bitset.BitSet {
-	st := registerAndGetStorage[T](pool)
-	return &st.b
-}
-
-// internal use
-func getReflectedType[T any]() reflect.Type {
-	var zero T
-	r := reflect.TypeOf(zero)
-	if r == nil {
-		panic("failed attempt to register nil component. Components cannot be interfaces, if you wish to use interfaces as components, wrap them in a struct. this also applies to pointers and maps")
-	}
-	return r
-}
-
 // same as public register but also gives the storage
 // it will not allocate a new storage if it already exists
 // this will use the pool's mutexes appropriately
 func registerAndGetStorage[T any](pool *Pool) *Storage[T] {
-	var r = getReflectedType[T]()
+	var nilptr *T
 	pool.componentsUsedMu.RLock()
-	st, ok := pool.stores[r]
+	st, ok := pool.stores[nilptr]
 	pool.componentsUsedMu.RUnlock()
 	if ok {
 		return st.(*Storage[T])
@@ -322,9 +320,10 @@ func registerAndGetStorage[T any](pool *Pool) *Storage[T] {
 		// allocate storage
 		var st = newStorage[T](pool.size)
 		pool.componentsUsedMu.Lock()
-		pool.stores[r] = st
+		pool.stores[nilptr] = st
 		pool.componentsUsedMu.Unlock()
 		return st
 	}
-	panic(fmt.Sprintln("Component of type ", r, " was not registered"))
+	var zero T
+	panic(fmt.Sprintf("Component of type %T was not registered", zero))
 }
