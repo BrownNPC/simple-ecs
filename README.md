@@ -178,7 +178,7 @@ func MovementSystem(p *ecs.Pool,
 ```
 
 
-### Motivation + Opinion:
+### Motivation:
   The other ECS libraries seem
   to focus on having the best
   possible performance,
@@ -198,20 +198,6 @@ func MovementSystem(p *ecs.Pool,
 	queries are just "And" / "AndNot" operations on a couple
 	of integers.
 
-  This is just my opinion but most
-  games that are made using Go should
-  not care about microseconds worth
-  of performance gains. As the main reason
-  to pick Go over C++, C#, Java or Rust is
-  because of Go's simplicity.
-  
-  no hate or anything of that sort
-  is intended towards any developer's work.
-  Everyone has their own reasons for writing
-  their unique solutions. I am not claiming that
-  this is the best ECS for Go. I am only claiming
-  that it has a simple API,
-  but that could be subjective.
 
 ### Acknowledgements
   Donburi is another library that

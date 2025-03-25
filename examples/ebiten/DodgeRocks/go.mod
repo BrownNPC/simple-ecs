@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.1
 
 require (
-	github.com/BrownNPC/simple-ecs v1.0.1
+	github.com/BrownNPC/simple-ecs v1.2.0
 	github.com/hajimehoshi/ebiten/v2 v2.8.6
 	golang.org/x/image v0.25.0
 )

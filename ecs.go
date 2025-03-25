@@ -292,8 +292,8 @@ func Remove[T any](pool *Pool, e Entity) {
 
 // check if an entity has a component
 // shorthand for
-// POSITION := ecs.GetStorage[Position](pool)
-// POSITION.EntityHasComponent(e)
+//  POSITION := ecs.GetStorage[Position](pool)
+//  POSITION.EntityHasComponent(e)
 func Has[T any](pool *Pool, e Entity) bool {
 	st := registerAndGetStorage[T](pool)
 	return st.EntityHasComponent(e)
