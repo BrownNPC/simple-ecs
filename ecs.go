@@ -111,10 +111,27 @@ func (st *Storage[T]) EntityHasComponent(e Entity) bool {
 }
 
 // get a copy of an entity's component
+// You can then update the entity using
+// Storage[T].Update()
 func (st *Storage[T]) Get(e Entity) T {
 	st.mut.RLock()
 	c := st.components[e]
 	st.mut.RUnlock()
+	return c
+}
+
+//	You probably dont need to use this. The performance
+//	 gain is negligible.
+//
+// get a pointer to an entity's component
+// so that you dont need to update the entity.
+//
+// please DONT USE THIS if you're using goroutines,
+// and DO NOT store the pointer for later use
+func (st *Storage[T]) GetPtrUnsafe(e Entity) *T {
+	st.mut.RLock()
+	c := &st.components[e]
+	defer st.mut.RUnlock()
 	return c
 }
 
@@ -292,8 +309,9 @@ func Remove[T any](pool *Pool, e Entity) {
 
 // check if an entity has a component
 // shorthand for
-//  POSITION := ecs.GetStorage[Position](pool)
-//  POSITION.EntityHasComponent(e)
+//
+//	POSITION := ecs.GetStorage[Position](pool)
+//	POSITION.EntityHasComponent(e)
 func Has[T any](pool *Pool, e Entity) bool {
 	st := registerAndGetStorage[T](pool)
 	return st.EntityHasComponent(e)
