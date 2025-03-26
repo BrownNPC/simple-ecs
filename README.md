@@ -8,7 +8,7 @@ game systems in Go
 #### Documentation
 [GoDoc can be found here](https://pkg.go.dev/github.com/BrownNPC/simple-ecs#pkg-variables)
 
-[Jump to Example](https://github.com/BrownNPC/simple-ecs/README.md#now-here-is-an-example)
+[Jump to Example](https://github.com/BrownNPC/simple-ecs?tab=readme-ov-file#now-here-is-an-example)
 
 ### Simple-ECS Features:
 - Easy syntax / api
