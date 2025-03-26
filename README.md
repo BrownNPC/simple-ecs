@@ -8,6 +8,7 @@ game systems in Go
 #### Documentation
 [GoDoc can be found here](https://pkg.go.dev/github.com/BrownNPC/simple-ecs#pkg-variables)
 
+[Jump to Example](https://github.com/BrownNPC/simple-ecs/README.md#now-here-is-an-example)
 
 ### Simple-ECS Features:
 - Easy syntax / api
@@ -108,7 +109,7 @@ The pool also has its own bitset that tracks which entities are alive
 you dont need to worry about how the pool works, just know that the
 pool is responsible for creating and deleting entities
 
-Now here is an example:
+## Now here is an example:
 ```go
 package main
 
