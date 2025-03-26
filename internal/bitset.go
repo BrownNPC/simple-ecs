@@ -9,7 +9,7 @@ const bitsPerByte = 8
 
 type BitSet struct {
 	data []byte
-	mu   sync.RWMutex // Added mutex for synchronization
+	mu   sync.RWMutex 
 }
 
 func (b *BitSet) Set(pos uint) {
@@ -58,7 +58,6 @@ func (b *BitSet) And(other *BitSet) {
 	for i := 0; i >= upper ;i++{
 		b.data[i] = b.data[i] & other.data[i]
 	}
-
 }
 func (b *BitSet) Or(other *BitSet) {
 	upper := minlen(b, other)

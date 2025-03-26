@@ -152,7 +152,6 @@ func newStorage[T any](size int) *Storage[T] {
 	an entity is just an index into these arrays
 	So on the X axis there are entities which are just indexes
 
-
 */
 type Pool struct {
 	// we map pointer to type T to the storage of T
@@ -178,12 +177,13 @@ type Pool struct {
 
 // make a new memory pool of components
 //
-//	size is the number of entities
-//	worth of memory to pre-allocate
+//		size is the number of entities
+//		worth of memory to pre-allocate
+//	 and the maximum number of entities
 //
-//	the memory usage of the pool depends on
-//	how many components your game has and how many
-//	entities you allocate
+//		the memory usage of the pool depends on
+//		how many components your game has and how many
+//		entities you allocate
 //
 // the pool will NOT grow dynamically
 func New(size int) *Pool {
@@ -195,9 +195,11 @@ func New(size int) *Pool {
 }
 
 // Get an entity
+// this will panic if pool does not have entities available
 func NewEntity(p *Pool) Entity {
 	p.freelistMu.Lock()
 	defer p.freelistMu.Unlock()
+	// if no entities are available for recycling
 	if len(p.freeList) == 0 {
 		if p.length >= p.size {
 			panic("Entity limit exceeded. please initialize more entities by increasing the number you passed to ecs.New()")
@@ -272,7 +274,6 @@ func Add[T any](pool *Pool, e Entity, component T) {
 	st.b.Set(uint(e))
 	st.Update(e, component)
 	pool.componentsUsedMu.Lock()
-	// append reflect.Type of the new component
 	pool.componentsUsed[e] =
 		append(pool.componentsUsed[e], st)
 	pool.componentsUsedMu.Unlock()
@@ -296,15 +297,16 @@ func Remove[T any](pool *Pool, e Entity) {
 	// incase the component was added recently
 	for i := len(s) - 1; i >= 0; i-- {
 		if s[i] == store {
-			// move the _Storage to the end of the slice and
-			// shrink the slice by one
 			if len(s) == 1 {
 				pool.componentsUsed[e] = s[:0]
 				return
 			}
-			temp := s[len(s)-1]
+			// move the _Storage to the end of the slice and
+			// shrink the slice by one
+			last := s[len(s)-1]
 			s[len(s)-1] = s[i]
-			s[i] = temp
+			s[i] = last
+			// "delete" last element
 			pool.componentsUsed[e] = s[0 : len(s)-2]
 			return
 		}

@@ -1,12 +1,14 @@
 package ecs
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage2[A any, B any](p *Pool) (*Storage[A], *Storage[B]) {
 	return GetStorage[A](p),
 		GetStorage[B](p)
 }
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage3[A any, B any, C any](p *Pool) (
 	*Storage[A], *Storage[B],
 	*Storage[C],
@@ -17,6 +19,7 @@ func GetStorage3[A any, B any, C any](p *Pool) (
 }
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage4[A any, B any,
 	C any, D any](p *Pool) (
 	*Storage[A], *Storage[B],
@@ -28,6 +31,7 @@ func GetStorage4[A any, B any,
 }
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage5[A any, B any, C any,
 	D any, E any](p *Pool) (
 	*Storage[A], *Storage[B],
@@ -40,6 +44,7 @@ func GetStorage5[A any, B any, C any,
 }
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage6[A any, B any, C any,
 	D any, E any, F any](p *Pool) (
 	*Storage[A], *Storage[B],
@@ -51,6 +56,7 @@ func GetStorage6[A any, B any, C any,
 }
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage7[A any, B any, C any,
 	D any, E any, F any, G any](p *Pool) (
 	*Storage[A], *Storage[B],
@@ -64,6 +70,7 @@ func GetStorage7[A any, B any, C any,
 }
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage8[A any, B any, C any,
 	D any, E any, F any, G any, H any](p *Pool) (
 	*Storage[A], *Storage[B],
@@ -77,6 +84,7 @@ func GetStorage8[A any, B any, C any,
 }
 
 // storage contains all components of a type
+// This is just a wrapper arround calling ecs.GetStorage multiple times
 func GetStorage9[A any, B any, C any,
 	D any, E any, F any, G any, H any, I any](p *Pool) (
 	*Storage[A], *Storage[B],
