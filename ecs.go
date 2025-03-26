@@ -298,6 +298,10 @@ func Remove[T any](pool *Pool, e Entity) {
 		if s[i] == store {
 			// move the _Storage to the end of the slice and
 			// shrink the slice by one
+			if len(s) == 1 {
+				pool.componentsUsed[e] = s[:0]
+				return
+			}
 			temp := s[len(s)-1]
 			s[len(s)-1] = s[i]
 			s[i] = temp
