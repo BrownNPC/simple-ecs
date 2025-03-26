@@ -4,7 +4,6 @@ package ecs
 // this code is MIT licensed.
 import (
 	"fmt"
-	"sync"
 
 	bitset "github.com/BrownNPC/simple-ecs/internal"
 )
@@ -32,8 +31,8 @@ type Storage[Component any] struct {
 	availableIndex int
 	// a bitset is used to store which
 	//indexes are occupied by entities
-	b   bitset.BitSet
-	mut sync.RWMutex
+	b        bitset.BitSet
+	mut      CustomRWMutex
 }
 type _Storage interface {
 	delete(e Entity)
@@ -155,8 +154,8 @@ type Pool struct {
 	size int
 	//how many entities are alive
 	length           int
-	freelistMu       sync.Mutex
-	componentsUsedMu sync.RWMutex
+	freelistMu       CustomRWMutex
+	componentsUsedMu CustomRWMutex
 }
 
 // make a new memory pool of components
@@ -292,8 +291,9 @@ func Remove[T any](pool *Pool, e Entity) {
 
 // check if an entity has a component
 // shorthand for
-//  POSITION := ecs.GetStorage[Position](pool)
-//  POSITION.EntityHasComponent(e)
+//
+//	POSITION := ecs.GetStorage[Position](pool)
+//	POSITION.EntityHasComponent(e)
 func Has[T any](pool *Pool, e Entity) bool {
 	st := registerAndGetStorage[T](pool)
 	return st.EntityHasComponent(e)
