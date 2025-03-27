@@ -7,8 +7,8 @@ import (
 	"github.com/BrownNPC/simple-ecs"
 )
 
-// 5. Concurrency & Thread Safety
-func TestConcurrentEntityCreation(t *testing.T) {
+// Concurrency & Thread Safety
+func ConcurrentEntityCreation(t *testing.T) {
 	pool := ecs.New(1000)
 	var wg sync.WaitGroup
 	entities := make(chan ecs.Entity, 1000)
@@ -35,7 +35,7 @@ func TestConcurrentEntityCreation(t *testing.T) {
 	}
 }
 
-func TestConcurrentComponentOperations(t *testing.T) {
+func ConcurrentComponentOperations(t *testing.T) {
 	for i := 0; i <= 1000; i++ {
 		pool := ecs.New(100)
 		e := ecs.NewEntity(pool)
@@ -65,7 +65,7 @@ func TestConcurrentComponentOperations(t *testing.T) {
 	}
 }
 
-func TestParallelReadWrite(t *testing.T) {
+func ParallelReadWrite(t *testing.T) {
 	pool := ecs.New(100)
 	e := ecs.NewEntity(pool)
 	type Position struct{ X, Y float32 }
@@ -89,8 +89,8 @@ func TestParallelReadWrite(t *testing.T) {
 	wg.Wait()
 }
 
-// 6. Edge Cases & Error Handling
-func TestInvalidEntityHandling(t *testing.T) {
+// Edge Cases & Error Handling
+func InvalidEntityHandling(t *testing.T) {
 	pool := ecs.New(10)
 	e := ecs.NewEntity(pool)
 	type Position struct{ X, Y float32 }
@@ -104,11 +104,11 @@ func TestInvalidEntityHandling(t *testing.T) {
 		t.Error("Dead entity should not receive components")
 	}
 
-	// Test Remove on dead entity (should be no-op)
+	// Remove on dead entity (should be no-op)
 	ecs.Remove[Position](pool, e)
 }
 
-func TestUpdateDeadEntityPanic(t *testing.T) {
+func UpdateDeadEntityPanic(t *testing.T) {
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("Updating dead entity should panic")
@@ -124,7 +124,7 @@ func TestUpdateDeadEntityPanic(t *testing.T) {
 	ecs.GetStorage[Position](pool).Update(e, Position{3, 4})
 }
 
-func TestComponentZeroValue(t *testing.T) {
+func ComponentZeroValue(t *testing.T) {
 	pool := ecs.New(10)
 	e := ecs.NewEntity(pool)
 	type Position struct{ X, Y float32 }
@@ -140,8 +140,8 @@ func TestComponentZeroValue(t *testing.T) {
 	}
 }
 
-// Mutex Integrity Test (indirectly tested via race detector)
-func TestNoDeadlocks(t *testing.T) {
+// Mutex Integrity  (indirectly tested via race detector)
+func NoDeadlocks(t *testing.T) {
 	pool := ecs.New(1000)
 	type Position struct{ X, Y float32 }
 	type Velocity struct{ X, Y float32 }

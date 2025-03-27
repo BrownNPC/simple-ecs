@@ -9,6 +9,7 @@ import (
 )
 
 func TestNewEntityCreation(t *testing.T) {
+
 	t.Run("Create entities up to limit", func(t *testing.T) {
 		poolSize := 5
 		p := ecs.New(poolSize)
@@ -54,6 +55,7 @@ func TestNewEntityCreation(t *testing.T) {
 }
 
 func TestEntityReuse(t *testing.T) {
+
 	poolSize := 3
 	p := ecs.New(poolSize)
 
@@ -96,6 +98,7 @@ func TestEntityReuse(t *testing.T) {
 }
 
 func TestKillEntities(t *testing.T) {
+
 	poolSize := 5
 	p := ecs.New(poolSize)
 	e := ecs.NewEntity(p)
@@ -124,6 +127,7 @@ func TestKillEntities(t *testing.T) {
 }
 
 func TestIsAliveCheck(t *testing.T) {
+
 	poolSize := 3
 	p := ecs.New(poolSize)
 
@@ -141,5 +145,24 @@ func TestIsAliveCheck(t *testing.T) {
 			t.Error("Killed entity still marked alive")
 		}
 	})
+}
 
+func TestPoolResize(t *testing.T) {
+	poolSize := 3
+	p := ecs.New(poolSize).EnableGrowing()
+	type Position struct {
+		X, Y float64
+	}
+	type Velocity Position
+	t.Run("should work fine", func(t *testing.T) {
+		for i := 0; i < poolSize; i++ {
+			e := ecs.NewEntity(p)
+			ecs.Add2(p, e, Position{}, Velocity{})
+		}
+	})
+	t.Run("Creating entity should grow pool", func(t *testing.T) {
+		e := ecs.NewEntity(p)
+		ecs.Add(p, e, Position{})
+		ecs.GetStorage[Position](p).Get(e)
+	})
 }

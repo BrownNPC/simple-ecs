@@ -13,6 +13,11 @@ import (
 // are not registered before use.
 var AutoRegisterComponents = true
 
+// With this turned off, the pool will hold a fixed number of entities.
+// You probably want to turn this off if you have 500+ entities and use a fixed
+// amount for the pool
+var AutoResizePool = true
+
 // Entity is an id that has components
 //
 //	please only create entities using the pool
@@ -28,8 +33,7 @@ a record of which entity has the component the storage is storing
 */
 type Storage[Component any] struct {
 	// slice of components
-	components     []Component
-	availableIndex int
+	components []Component
 	// a bitset is used to store which
 	//indexes are occupied by entities
 	b   bitset.BitSet
@@ -113,26 +117,33 @@ func (st *Storage[T]) EntityHasComponent(e Entity) bool {
 // get a copy of an entity's component
 // You can then update the entity using
 // Storage[T].Update()
-func (s *Storage[T]) Get(e Entity) T {
+// if the entity is dead, or does not have this component
+// then the returned value will be the zero value of the component
+func (s *Storage[T]) Get(e Entity) (component T) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	c := s.components[e]
-	return c
+	if !s.EntityHasComponent(e){
+		return component
+	}
+	return s.components[e]
 }
 
 //	You probably dont need to use this. The performance
-//	 gain is negligible.
+//	gain is negligible.
 //
 // get a pointer to an entity's component
 // so that you dont need to update the entity.
+// if the entity is dead or does not have this component, the return value is nil
 //
 // please DONT USE THIS if you're using goroutines,
 // and DO NOT store the pointer for later use
 func (st *Storage[T]) GetPtrUnsafe(e Entity) *T {
 	st.mut.Lock()
 	defer st.mut.Unlock()
-	c := &st.components[e]
-	return c
+	if !st.EntityHasComponent(e){
+		return nil
+	}
+	return &st.components[e]
 }
 
 func newStorage[T any](size int) *Storage[T] {
@@ -171,26 +182,37 @@ type Pool struct {
 	size int
 	//how many entities are alive
 	length int
-	mut    sync.Mutex
+	// pool will not autoGrow storages if this is false
+	autoGrow bool
+	// generations track how many times an entity was recycled
+	generations map[Entity]int
+	mut         sync.Mutex
 }
 
-// make a new memory pool of components
+// make a new memory pool of components.
 //
-//		size is the number of entities
-//		worth of memory to pre-allocate
-//	 and the maximum number of entities
+// size is the number of entities
+// worth of memory to pre-allocate
+// and the maximum number of entities if pool.EnableResize is not called
 //
-//		the memory usage of the pool depends on
-//		how many components your game has and how many
-//		entities you allocate
-//
-// the pool will NOT grow dynamically
+// the memory usage of the pool depends on
+// how many components your game has and how many
+// entities you allocate
 func New(size int) *Pool {
 	return &Pool{
 		stores:         make(map[any]_Storage),
 		componentsUsed: make(map[Entity][]_Storage),
+		generations:    make(map[Entity]int),
 		size:           size,
 	}
+}
+
+// increase the size of the storages when pool runs out of available entities
+func (p *Pool) EnableGrowing() *Pool {
+	p.mut.Lock()
+	defer p.mut.Unlock()
+	p.autoGrow = true
+	return p
 }
 
 // Get an entity
@@ -200,8 +222,10 @@ func NewEntity(p *Pool) Entity {
 	defer p.mut.Unlock()
 	// if no entities are available for recycling
 	if len(p.freeList) == 0 {
-		if p.length >= p.size {
-			panic("Entity limit exceeded. please initialize more entities by increasing the number you passed to ecs.New()")
+		if !p.autoGrow && p.length >= p.size {
+			
+			msg :=fmt.Sprintf("Entity limit exceeded. please initialize more entities by increasing the number you passed to ecs.New(). OR enable growing of the pool by calling ecs.New(x).EnableGrowing()\nGiven size: %d\n Entity: %d", p.size,p.length+1)
+			panic(msg)
 		}
 		e := Entity(p.length)
 		p.aliveEntities.Set(uint(e))
@@ -211,6 +235,10 @@ func NewEntity(p *Pool) Entity {
 	// recycle an entity
 	var newEntity = p.freeList[0]
 	p.freeList = p.freeList[1:]
+	//update generation of this entity
+	if gens, ok := p.generations[newEntity]; ok {
+		p.generations[newEntity] = gens + 1
+	}
 	return newEntity
 }
 
@@ -268,11 +296,33 @@ func Add[T any](pool *Pool, e Entity, component T) {
 		return
 	}
 	st := registerAndGetStorage[T](pool)
+	st.mut.Lock()
+	defer st.mut.Unlock()
 	if st.EntityHasComponent(e) {
 		return
 	}
+	capacity := cap(st.components)
+	if capacity <= int(e) {
+		// resize, potentially allowing for 1000 more entities
+		pool.size = max(pool.size, pool.size+1000)
+		newSt := newStorage[T](pool.size)
+		// clone old storage into new storage
+		copy(newSt.components, st.components)
+		newSt.b = st.b.Clone()
+
+		var nilptr *T
+		pool.stores[nilptr] = newSt
+		// update pointer to new storage
+		for i, s := range pool.componentsUsed[e] {
+			if s == st {
+				pool.componentsUsed[e][i] = newSt
+			}
+
+		}
+		st = newSt
+	}
 	st.b.Set(uint(e))
-	st.Update(e, component)
+	st.components[e] = component
 	pool.componentsUsed[e] =
 		append(pool.componentsUsed[e], st)
 }
@@ -327,11 +377,20 @@ func IsAlive(pool *Pool, e Entity) bool {
 }
 
 // storage contains all components of a type
+// it is unsafe to store the result in a variable
 func GetStorage[A any](pool *Pool) *Storage[A] {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
 	st := registerAndGetStorage[A](pool)
 	return st
+}
+
+// the generation is the number of times the entity has been recycled
+func GetGeneration(pool *Pool, e Entity) int {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
+	v, _ := pool.generations[e]
+	return v
 }
 
 // same as public register but also gives the storage

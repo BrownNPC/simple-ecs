@@ -130,7 +130,8 @@ type Velocity Vec2
 func main() {
 	// create a memory pool of component arrays
 	// the pool can hold 1000 entities
-	var pool = ecs.New(1000)
+	// but will grow if enabled
+	var pool = ecs.New(1000).EnableGrowing()
 	// create 1000 entities
 	for range 1000 {
 		// entities (which are just ids)
