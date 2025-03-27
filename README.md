@@ -203,3 +203,6 @@ func MovementSystem(p *ecs.Pool,
 ### Acknowledgements
   Donburi is another library that
   implements ECS with a simple API.
+
+## Running tests
+`go test -count 1000 -v ./...`

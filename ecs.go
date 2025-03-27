@@ -33,7 +33,7 @@ type Storage[Component any] struct {
 	// a bitset is used to store which
 	//indexes are occupied by entities
 	b   bitset.BitSet
-	mut sync.RWMutex
+	mut sync.Mutex
 }
 type _Storage interface {
 	delete(e Entity)
@@ -42,10 +42,10 @@ type _Storage interface {
 
 func (s *Storage[T]) delete(e Entity) {
 	s.mut.Lock()
+	defer s.mut.Unlock()
 	var zero T
 	s.components[e] = zero
 	s.b.Unset(uint(e))
-	s.mut.Unlock()
 }
 func (s *Storage[T]) getBitset() *bitset.BitSet {
 	return &s.b
@@ -59,9 +59,9 @@ func (s *Storage[T]) getBitset() *bitset.BitSet {
 //
 // passing in nil or nothing will return the entities with the component this storage stores
 func (s *Storage[T]) And(storages ..._Storage) []Entity {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 	mask := s.b.Clone()
-	s.mut.RLock()
-	defer s.mut.RUnlock()
 	if len(storages) > 0 {
 		for _, s := range storages {
 			if s != nil {
@@ -82,9 +82,9 @@ func (s *Storage[T]) And(storages ..._Storage) []Entity {
 //
 // passing in nil or nothing will return the entities with the component this storage stores
 func (s *Storage[T]) ButNot(storages ..._Storage) []Entity {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 	mask := s.b.Clone()
-	s.mut.RLock()
-	defer s.mut.RUnlock()
 	for _, s := range storages {
 		if s != nil {
 			mask.AndNot(s.getBitset())
@@ -113,10 +113,10 @@ func (st *Storage[T]) EntityHasComponent(e Entity) bool {
 // get a copy of an entity's component
 // You can then update the entity using
 // Storage[T].Update()
-func (st *Storage[T]) Get(e Entity) T {
-	st.mut.RLock()
-	c := st.components[e]
-	st.mut.RUnlock()
+func (s *Storage[T]) Get(e Entity) T {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	c := s.components[e]
 	return c
 }
 
@@ -129,9 +129,9 @@ func (st *Storage[T]) Get(e Entity) T {
 // please DONT USE THIS if you're using goroutines,
 // and DO NOT store the pointer for later use
 func (st *Storage[T]) GetPtrUnsafe(e Entity) *T {
-	st.mut.RLock()
+	st.mut.Lock()
+	defer st.mut.Unlock()
 	c := &st.components[e]
-	defer st.mut.RUnlock()
 	return c
 }
 
@@ -170,9 +170,8 @@ type Pool struct {
 	// no. of entities to pre-allocate / max entity count
 	size int
 	//how many entities are alive
-	length           int
-	freelistMu       sync.Mutex
-	componentsUsedMu sync.RWMutex
+	length int
+	mut    sync.Mutex
 }
 
 // make a new memory pool of components
@@ -197,8 +196,8 @@ func New(size int) *Pool {
 // Get an entity
 // this will panic if pool does not have entities available
 func NewEntity(p *Pool) Entity {
-	p.freelistMu.Lock()
-	defer p.freelistMu.Unlock()
+	p.mut.Lock()
+	defer p.mut.Unlock()
 	// if no entities are available for recycling
 	if len(p.freeList) == 0 {
 		if p.length >= p.size {
@@ -217,24 +216,20 @@ func NewEntity(p *Pool) Entity {
 
 // give entities back to the pool
 func Kill(p *Pool, entities ...Entity) {
+	p.mut.Lock()
+	defer p.mut.Unlock()
 	for _, e := range entities {
 		p.aliveEntities.Unset(uint(e))
 		//mark the entity as available
-		p.freelistMu.Lock()
 		p.freeList = append(p.freeList, e)
-		p.freelistMu.Unlock()
-		p.componentsUsedMu.RLock()
 		var storagesUsed []_Storage = p.componentsUsed[e]
-		p.componentsUsedMu.RUnlock()
 		for _, store := range storagesUsed {
 			//zero out the component for this entity
 			store.delete(e)
 		}
-		p.componentsUsedMu.Lock()
 		// entity no longer has these components
 		// set slice length to 0
 		p.componentsUsed[e] = p.componentsUsed[e][:0]
-		p.componentsUsedMu.Unlock()
 	}
 }
 
@@ -247,11 +242,11 @@ func Kill(p *Pool, entities ...Entity) {
 //	type Position Vec2 // correct
 //	type Position = Vec2 // incorrect
 func Register[T any](pool *Pool) {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
 	var nilptr *T
 	_, ok := pool.stores[nilptr]
 	if !ok {
-		pool.componentsUsedMu.Lock()
-		defer pool.componentsUsedMu.Unlock()
 		pool.stores[nilptr] = newStorage[T](pool.size)
 		return
 	}
@@ -267,31 +262,32 @@ type Position = Vec2 // incorrect `))
 // automatically register component if ecs.AutoRegisterComponents
 // is true (default)
 func Add[T any](pool *Pool, e Entity, component T) {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
+	if !IsAlive(pool, e) {
+		return
+	}
 	st := registerAndGetStorage[T](pool)
 	if st.EntityHasComponent(e) {
 		return
 	}
 	st.b.Set(uint(e))
 	st.Update(e, component)
-	pool.componentsUsedMu.Lock()
 	pool.componentsUsed[e] =
 		append(pool.componentsUsed[e], st)
-	pool.componentsUsedMu.Unlock()
 }
 
 // remove a component from an entity
 func Remove[T any](pool *Pool, e Entity) {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
 	st := registerAndGetStorage[T](pool)
 	if !st.EntityHasComponent(e) {
 		return
 	}
 	st.delete(e)
-	pool.componentsUsedMu.RLock()
 	var s []_Storage = pool.componentsUsed[e]
-	pool.componentsUsedMu.RUnlock()
 
-	pool.componentsUsedMu.Lock()
-	defer pool.componentsUsedMu.Unlock()
 	store := (_Storage)(st)
 	// iterate in reverse
 	// incase the component was added recently
@@ -319,15 +315,23 @@ func Remove[T any](pool *Pool, e Entity) {
 //	POSITION := ecs.GetStorage[Position](pool)
 //	POSITION.EntityHasComponent(e)
 func Has[T any](pool *Pool, e Entity) bool {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
 	st := registerAndGetStorage[T](pool)
 	return st.EntityHasComponent(e)
 }
 
+// Check if an entity is alive
+func IsAlive(pool *Pool, e Entity) bool {
+	return pool.aliveEntities.IsSet(uint(e))
+}
+
 // storage contains all components of a type
 func GetStorage[A any](pool *Pool) *Storage[A] {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
 	st := registerAndGetStorage[A](pool)
 	return st
-
 }
 
 // same as public register but also gives the storage
@@ -335,17 +339,13 @@ func GetStorage[A any](pool *Pool) *Storage[A] {
 // this will use the pool's mutexes appropriately
 func registerAndGetStorage[T any](pool *Pool) *Storage[T] {
 	var nilptr *T
-	pool.componentsUsedMu.RLock()
 	st, ok := pool.stores[nilptr]
-	pool.componentsUsedMu.RUnlock()
 	if ok {
 		return st.(*Storage[T])
 	} else if AutoRegisterComponents {
 		// allocate storage
 		var st = newStorage[T](pool.size)
-		pool.componentsUsedMu.Lock()
 		pool.stores[nilptr] = st
-		pool.componentsUsedMu.Unlock()
 		return st
 	}
 	var zero T
