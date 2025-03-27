@@ -1,5 +1,9 @@
 github.com/BrownNPC/simple-ecs v1.2.0 h1:EBj8MuzqJk6Gbw9vYC2vdHLtXRzPHsaeNJ9YNbLqAAI=
 github.com/BrownNPC/simple-ecs v1.2.0/go.mod h1:za2tJyb/GgSyo40nG1nxohU4ThHNP+pzDmAz4KkahiU=
+github.com/BrownNPC/simple-ecs v1.2.4 h1:41tycLjqq0RrFcvVP8rxdsUSiQ+Q/pkCjF0zsxuJFmM=
+github.com/BrownNPC/simple-ecs v1.2.4/go.mod h1:za2tJyb/GgSyo40nG1nxohU4ThHNP+pzDmAz4KkahiU=
+github.com/BrownNPC/simple-ecs v1.2.5 h1:jdIiAM0KnOynTVtY6qdvXu0nJS89vIwpdKRgA6IvG5M=
+github.com/BrownNPC/simple-ecs v1.2.5/go.mod h1:za2tJyb/GgSyo40nG1nxohU4ThHNP+pzDmAz4KkahiU=
 github.com/ebitengine/gomobile v0.0.0-20240911145611-4856209ac325 h1:Gk1XUEttOk0/hb6Tq3WkmutWa0ZLhNn/6fc6XZpM7tM=
 github.com/ebitengine/gomobile v0.0.0-20240911145611-4856209ac325/go.mod h1:ulhSQcbPioQrallSuIzF8l1NKQoD7xmMZc5NxzibUMY=
 github.com/ebitengine/hideconsole v1.0.0 h1:5J4U0kXF+pv/DhiXt5/lTz0eO5ogJ1iXb8Yj1yReDqE=
