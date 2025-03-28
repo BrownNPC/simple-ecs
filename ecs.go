@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sync"
 
-	ecs "github.com/BrownNPC/simple-ecs"
 	bitset "github.com/BrownNPC/simple-ecs/internal"
 )
 
@@ -37,6 +36,8 @@ type Storage[Component any] struct {
 type _Storage interface {
 	delete(e Entity)
 	getBitset() *bitset.BitSet
+	lock()
+	unlock()
 }
 
 func (s *Storage[T]) delete(e Entity) {
@@ -49,6 +50,12 @@ func (s *Storage[T]) delete(e Entity) {
 func (s *Storage[T]) getBitset() *bitset.BitSet {
 	return &s.b
 }
+func (s *Storage[Component]) lock() {
+	s.mut.Lock()
+}
+func (s *Storage[Component]) unlock() {
+	s.mut.Unlock()
+}
 
 // takes in other storages and returns
 // entities that exist in all of them
@@ -56,15 +63,19 @@ func (s *Storage[T]) getBitset() *bitset.BitSet {
 //	in simple terms:
 //	 entities that have all of these components
 //
-// passing in nil or nothing will return the entities with the component this storage stores
+// passing in nil or nothing will return entities that have this storage's component
 func (s *Storage[T]) And(storages ..._Storage) []Entity {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	mask := s.b.Clone()
+	s.b.Mu.Lock()
+	defer s.b.Mu.Unlock()
 	if len(storages) > 0 {
-		for _, s := range storages {
-			if s != nil {
-				mask.And(s.getBitset())
+		for _, otherSt := range storages {
+			otherSt.lock()
+			defer otherSt.unlock()
+			if otherSt != nil {
+				mask.And(otherSt.getBitset())
 			}
 		}
 	}
@@ -75,9 +86,9 @@ func (s *Storage[T]) And(storages ..._Storage) []Entity {
 // entities that exist in this storage but
 // not in the storages passed in
 //
-//		in simple terms:
-//		 entities that have this component
-//	  but not the other ones
+//	 in simple terms:
+//		entities that have this component
+//		but not the other ones
 //
 // passing in nil or nothing will return the entities with the component this storage stores
 func (s *Storage[T]) ButNot(storages ..._Storage) []Entity {
@@ -98,7 +109,7 @@ func (st *Storage[T]) Update(e Entity, component T) {
 	st.mut.Lock()
 	defer st.mut.Unlock()
 	if !st.EntityHasComponent(e) {
-		panic("Tried updating entity's component, but the entity does not have this component, add it first using ecs.Add")
+		return
 	}
 	st.components[e] = component
 }
@@ -121,82 +132,6 @@ func (s *Storage[T]) Get(e Entity) (component T) {
 		return component
 	}
 	return s.components[e]
-}
-
-//	You probably dont need to use this. The performance
-//	gain is negligible.
-//
-// get a pointer to an entity's component
-// so that you dont need to update the entity.
-// if the entity is dead or does not have this component, the return value is nil
-//
-//	this is NOT thread-safe, look at storage.AcquireLockUnsafe.
-//	DO NOT store the pointer for later use
-func (st *Storage[T]) GetPtrUnsafe(e Entity) *T {
-	if !st.EntityHasComponent(e) {
-		return nil
-	}
-	return &st.components[e]
-}
-
-//	only use this if you are going to use storage.GetPtrUnsafe()
-//
-// Lock the storage mutex. The idea is that before you start
-// modifying the components using their pointers, you lock the storage BEFORE looping
-// and unlock it AFTER the loop using storage.FreeLockUnsafe()
-// (to prevent memory corruption when you're using goroutines)
-//
-// Warning: you should only lock the storage BEFORE the loop, and AFTER querying
-//
-//		func MovementSystem(p *ecs.Pool) {
-//		     POSITION, VELOCITY := ecs.GetStorage2[Position, Velocity](p)
-//		     // query BEFORE locking
-//		     entities := POSITION.And(VELOCITY)
-//		     // lock before the loop but after querying
-//		     POSITION.AcquireLockUnsafe()
-//		     VELOCITY.AcquireLockUnsafe()
-//		     // defer before looping
-//		     defer POSITION.FreeLockUnsafe()
-//		     defer VELOCITY.FreeLockUnsafe()
-//	         // loop over entities
-//		     for _, e := range entities {
-//		     	pos, vel := POSITION.GetPtrUnsafe(e), VELOCITY.GetPtrUnsafe(e)
-//		     	pos.X += vel.X
-//		     	pos.Y += vel.Y
-//		     }
-//		}
-func (st *Storage[Component]) AcquireLockUnsafe() {
-	st.mut.Lock()
-}
-
-//	only use this if you are going to use storage.GetPtrUnsafe()
-//
-// UnLock the storage mutex. The idea is that before you start
-// modifying the components using their pointers, you lock the storage BEFORE looping
-// and unlock it AFTER the loop using storage.FreeLockUnsafe()
-// (to prevent memory corruption when you're using goroutines)
-//
-// Warning: you should only unlock the storage AFTER the loop
-//
-//		func MovementSystem(p *ecs.Pool) {
-//		     POSITION, VELOCITY := ecs.GetStorage2[Position, Velocity](p)
-//		     // query BEFORE locking
-//		     entities := POSITION.And(VELOCITY)
-//		     // lock before the loop but after querying
-//		     POSITION.AcquireLockUnsafe()
-//		     VELOCITY.AcquireLockUnsafe()
-//		     // defer before looping
-//		     defer POSITION.FreeLockUnsafe()
-//		     defer VELOCITY.FreeLockUnsafe()
-//	         // loop over entities
-//		     for _, e := range entities {
-//		     	pos, vel := POSITION.GetPtrUnsafe(e), VELOCITY.GetPtrUnsafe(e)
-//		     	pos.X += vel.X
-//		     	pos.Y += vel.Y
-//		     }
-//		}
-func (st *Storage[Component]) FreeLockUnsafe() {
-	st.mut.Unlock()
 }
 
 func newStorage[T any](size int) *Storage[T] {

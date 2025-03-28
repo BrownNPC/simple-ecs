@@ -9,12 +9,12 @@ const bitsPerByte = 8
 
 type BitSet struct {
 	Data []byte
-	mu   sync.Mutex
+	Mu   sync.Mutex
 }
 
 func (b *BitSet) Set(pos uint) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	defer b.Mu.Unlock()
 
 	byteIndex := pos / bitsPerByte
 	bitIndex := pos % bitsPerByte
@@ -30,8 +30,8 @@ func (b *BitSet) Set(pos uint) {
 }
 
 func (b *BitSet) Unset(pos uint) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	defer b.Mu.Unlock()
 
 	byteIndex := pos / bitsPerByte
 	if byteIndex >= uint(len(b.Data)) {
@@ -42,8 +42,8 @@ func (b *BitSet) Unset(pos uint) {
 }
 
 func (b *BitSet) IsSet(pos uint) bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	defer b.Mu.Unlock()
 
 	byteIndex := pos / bitsPerByte
 	if byteIndex >= uint(len(b.Data)) {
@@ -54,8 +54,10 @@ func (b *BitSet) IsSet(pos uint) bool {
 }
 
 func (b *BitSet) And(other *BitSet) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	other.Mu.Lock()
+	defer other.Mu.Unlock()
+	defer b.Mu.Unlock()
 	otherLen := len(other.Data)
 	bLen := len(b.Data)
 	minLen := Minint(bLen, otherLen)
@@ -70,8 +72,10 @@ func (b *BitSet) And(other *BitSet) {
 }
 
 func (b *BitSet) Or(other *BitSet) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	defer b.Mu.Unlock()
+	other.Mu.Lock()
+	defer other.Mu.Unlock()
 	otherLen := len(other.Data)
 	bLen := len(b.Data)
 
@@ -87,8 +91,8 @@ func (b *BitSet) Or(other *BitSet) {
 }
 
 func (b *BitSet) AndNot(other *BitSet) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	defer b.Mu.Unlock()
 	minLen := Minint(len(b.Data), len(other.Data))
 
 	for i := 0; i < minLen; i++ {
@@ -97,8 +101,8 @@ func (b *BitSet) AndNot(other *BitSet) {
 }
 
 func ActiveIndices[T ~uint32](b *BitSet) []T {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	defer b.Mu.Unlock()
 	ret := make([]T, 0, len(b.Data))
 	for NthByte, byteVal := range b.Data {
 		for NthBit := 0; NthBit < 8; NthBit++ {
@@ -112,8 +116,8 @@ func ActiveIndices[T ~uint32](b *BitSet) []T {
 }
 
 func (b *BitSet) Clone() BitSet {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.Mu.Lock()
+	defer b.Mu.Unlock()
 	return BitSet{Data: slices.Clone(b.Data)}
 }
 

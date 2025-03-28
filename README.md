@@ -13,9 +13,10 @@ game systems in Go
 ### Simple-ECS Features:
 - Easy syntax / api
 - Good perfomance!
-- Easy to understand code (300 lines*)
+- Easy to understand code (~400 lines)
 - Low level (implement what you need)
 - No Dependencies on other libraries
+- Easy Concurrency
 
 
 ### What is ECS? (and why you should use it)
@@ -206,4 +207,4 @@ func MovementSystem(p *ecs.Pool,
   implements ECS with a simple API.
 
 ## Running tests
-`go test -count 1000 -v ./...`
+`go test -count 10 -race ./...`
