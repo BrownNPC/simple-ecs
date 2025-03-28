@@ -166,6 +166,7 @@ func TestPoolResize(t *testing.T) {
 		ecs.GetStorage[Position](p).Get(e)
 	})
 }
+
 // Edge Cases & Error Handling
 func TestInvalidEntityHandling(t *testing.T) {
 	pool := ecs.New(10)
@@ -210,4 +211,24 @@ func TestComponentZeroValue(t *testing.T) {
 	if st.EntityHasComponent(e) {
 		t.Error("Killed entity's component should be zeroed")
 	}
+}
+func TestGenerations(t *testing.T) {
+	pool := ecs.New(10)
+	e := ecs.NewEntity(pool)
+	genBefore := ecs.GetGeneration(pool, e)
+	ecs.Kill(pool, e)
+	t.Run("should return 0", func(t *testing.T) {
+		genAfter := ecs.GetGeneration(pool, e)
+		if genAfter != 0 {
+			t.Error("Expected dead entity to be Gen 0, got: ", genAfter)
+		}
+	})
+	e1 :=ecs.NewEntity(pool)
+	t.Run("should be generation 1", func(t *testing.T) {
+		genAfter := ecs.GetGeneration(pool, e1)
+		if genAfter <genBefore {
+			t.Error("Expected reused entity to be Gen 1, got: ", genAfter)
+		}
+	})
+
 }
