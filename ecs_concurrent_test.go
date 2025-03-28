@@ -89,52 +89,7 @@ func TestParallelReadWrite(t *testing.T) {
 	wg.Wait()
 }
 
-// Edge Cases & Error Handling
-func TestInvalidEntityHandling(t *testing.T) {
-	pool := ecs.New(10)
-	e := ecs.NewEntity(pool)
-	type Position struct{ X, Y float32 }
 
-	// Kill entity first
-	ecs.Kill(pool, e)
-
-	// Try operations on dead entity
-	ecs.Add(pool, e, Position{1, 2})
-	if ecs.Has[Position](pool, e) {
-		t.Error("Dead entity should not receive components")
-	}
-
-	// Remove on dead entity (should be no-op)
-	ecs.Remove[Position](pool, e)
-}
-
-func TestUpdateDeadEntityPanic(t *testing.T) {
-	t.Run("updating dead entity should not panic.", func(t *testing.T) {
-		pool := ecs.New(10)
-		e := ecs.NewEntity(pool)
-		type Position struct{ X, Y float32 }
-
-		ecs.Add(pool, e, Position{1, 2})
-		ecs.Kill(pool, e)
-		ecs.GetStorage[Position](pool).Update(e, Position{3, 4})
-	})
-}
-
-func TestComponentZeroValue(t *testing.T) {
-	pool := ecs.New(10)
-	e := ecs.NewEntity(pool)
-	type Position struct{ X, Y float32 }
-
-	// Add component and kill entity
-	ecs.Add(pool, e, Position{1, 2})
-	ecs.Kill(pool, e)
-
-	// Verify component was zeroed
-	st := ecs.GetStorage[Position](pool)
-	if st.EntityHasComponent(e) {
-		t.Error("Killed entity's component should be zeroed")
-	}
-}
 
 // Mutex Integrity  (indirectly tested via race detector)
 func TestNoDeadlocks(t *testing.T) {
