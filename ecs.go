@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	ecs "github.com/BrownNPC/simple-ecs"
 	bitset "github.com/BrownNPC/simple-ecs/internal"
 )
 
@@ -129,11 +130,9 @@ func (s *Storage[T]) Get(e Entity) (component T) {
 // so that you dont need to update the entity.
 // if the entity is dead or does not have this component, the return value is nil
 //
-//	DONT USE THIS if you're using goroutines (look at storage.AcquireLockUnsafe)
+//	this is NOT thread-safe, look at storage.AcquireLockUnsafe.
 //	DO NOT store the pointer for later use
 func (st *Storage[T]) GetPtrUnsafe(e Entity) *T {
-	st.mut.Lock()
-	defer st.mut.Unlock()
 	if !st.EntityHasComponent(e) {
 		return nil
 	}
@@ -147,7 +146,25 @@ func (st *Storage[T]) GetPtrUnsafe(e Entity) *T {
 // and unlock it AFTER the loop using storage.FreeLockUnsafe()
 // (to prevent memory corruption when you're using goroutines)
 //
-//	Warning: you should only lock the storage BEFORE the loop
+// Warning: you should only lock the storage BEFORE the loop, and AFTER querying
+//
+//		func MovementSystem(p *ecs.Pool) {
+//		     POSITION, VELOCITY := ecs.GetStorage2[Position, Velocity](p)
+//		     // query BEFORE locking
+//		     entities := POSITION.And(VELOCITY)
+//		     // lock before the loop but after querying
+//		     POSITION.AcquireLockUnsafe()
+//		     VELOCITY.AcquireLockUnsafe()
+//		     // defer before looping
+//		     defer POSITION.FreeLockUnsafe()
+//		     defer VELOCITY.FreeLockUnsafe()
+//	         // loop over entities
+//		     for _, e := range entities {
+//		     	pos, vel := POSITION.GetPtrUnsafe(e), VELOCITY.GetPtrUnsafe(e)
+//		     	pos.X += vel.X
+//		     	pos.Y += vel.Y
+//		     }
+//		}
 func (st *Storage[Component]) AcquireLockUnsafe() {
 	st.mut.Lock()
 }
@@ -159,7 +176,25 @@ func (st *Storage[Component]) AcquireLockUnsafe() {
 // and unlock it AFTER the loop using storage.FreeLockUnsafe()
 // (to prevent memory corruption when you're using goroutines)
 //
-//	Warning: you should only lock the storage BEFORE the loop
+// Warning: you should only unlock the storage AFTER the loop
+//
+//		func MovementSystem(p *ecs.Pool) {
+//		     POSITION, VELOCITY := ecs.GetStorage2[Position, Velocity](p)
+//		     // query BEFORE locking
+//		     entities := POSITION.And(VELOCITY)
+//		     // lock before the loop but after querying
+//		     POSITION.AcquireLockUnsafe()
+//		     VELOCITY.AcquireLockUnsafe()
+//		     // defer before looping
+//		     defer POSITION.FreeLockUnsafe()
+//		     defer VELOCITY.FreeLockUnsafe()
+//	         // loop over entities
+//		     for _, e := range entities {
+//		     	pos, vel := POSITION.GetPtrUnsafe(e), VELOCITY.GetPtrUnsafe(e)
+//		     	pos.X += vel.X
+//		     	pos.Y += vel.Y
+//		     }
+//		}
 func (st *Storage[Component]) FreeLockUnsafe() {
 	st.mut.Unlock()
 }
