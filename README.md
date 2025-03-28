@@ -68,11 +68,10 @@ func MovementSystem(entities []entity){
 }
 ```
 
-### Why use ECS for writing game systems?
+### Why use ECS for writing game systems? 
   Because Go does not have inheritance.
   The language prefers seperating data from
   logic.
-
 #### How to use Simple ECS for writing systems
 Before we jump into the example, understanding how
 this library is implemented will help us learn it easily.
@@ -180,6 +179,24 @@ func MovementSystem(p *ecs.Pool,
 }
 ```
 
+### When to not use an ECS
+	You dont need ECS if your game is going to be very simple
+	like pong or flappy bird. But if you are making eg. "flappy bird with guns"
+	then ECS makes sense.
+
+	But even if you are using ECS;
+
+	
+	**Everything in your game does not *need* to be an entity.**
+	For example. If you are making "Chess with magic spells",
+	you might want to represent the board state using a Chess board struct (object)
+	and the pieces would probably be entities that have components. and you would
+	probably have systems for animations, the timer, magic spells, and maybe
+	checking if a piece can move to a square etc.
+	
+	Your user interface (UI) would probably also not benefit from being entities.
+
+	
 
 ### Motivation:
   The other ECS libraries seem

@@ -225,7 +225,7 @@ func NewEntity(p *Pool) Entity {
 	var newEntity = p.freeList[0]
 	p.freeList = p.freeList[1:]
 	//update generation of this entity
-	if len(p.generations) <= int(newEntity) {
+	if int(newEntity) > int(len(p.generations)){
 		//resize generations slice
 		//potentially allowing for +1000 entities
 		p.size = max(p.size, p.size+1000) // we check this because ecs.Add modifies Pool.size
