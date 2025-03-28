@@ -16,7 +16,7 @@ game systems in Go
 - Easy to understand code (~400 lines)
 - Low level (implement what you need)
 - No Dependencies on other libraries
-- Easy Concurrency
+- Safe Concurrency
 
 
 ### What is ECS? (and why you should use it)
