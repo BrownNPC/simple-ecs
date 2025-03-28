@@ -244,8 +244,6 @@ func Kill(p *Pool, entities ...Entity) {
 	defer p.mut.Unlock()
 	for _, e := range entities {
 		p.aliveEntities.Unset(uint(e))
-	}
-	for _, e := range entities {
 		//mark the entity as available
 		p.freeList = append(p.freeList, e)
 		var storagesUsed []_Storage = p.componentsUsed[e]
