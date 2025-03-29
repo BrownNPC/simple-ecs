@@ -446,6 +446,8 @@ func Has[T any](pool *Pool, e Entity) bool {
 
 // Check if an entity is alive
 func IsAlive(pool *Pool, e Entity) bool {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
 	return pool.aliveEntities.IsSet(uint(e))
 }
 
@@ -472,8 +474,6 @@ func GetGeneration(pool *Pool, e Entity) uint64 {
 // relationships. You store the entity's generation aswell to avoid
 // operating on reused entities
 func IsAliveWithGeneration(p *Pool, e Entity, generation uint64) bool {
-	p.mut.Lock()
-	defer p.mut.Unlock()
 	valid := GetGeneration(p, e) == generation
 	if valid {
 		return IsAlive(p, e)
