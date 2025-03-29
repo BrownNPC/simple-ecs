@@ -4,7 +4,9 @@ package ecs
 // this code is MIT licensed.
 import (
 	"fmt"
+	"slices"
 	"sync"
+	"unsafe"
 
 	bitset "github.com/BrownNPC/simple-ecs/internal"
 )
@@ -38,6 +40,7 @@ type _Storage interface {
 	getBitset() *bitset.BitSet
 	lock()
 	unlock()
+	getAddr() uintptr
 }
 
 func (s *Storage[T]) delete(e Entity) {
@@ -49,6 +52,49 @@ func (s *Storage[T]) delete(e Entity) {
 func (s *Storage[T]) getBitset() *bitset.BitSet {
 	return &s.b
 }
+
+// get the memory address, so we can sort storage interfaces
+func (s *Storage[T]) getAddr() uintptr {
+	return uintptr(unsafe.Pointer(s))
+}
+
+// If two goroutines call these methods with reversed storage parameters:
+
+// Goroutine 1: storageA.And(storageB)  // Locks A → B
+// Goroutine 2: storageB.And(storageA)  // Locks B → A
+// This creates a deadlock:
+
+// Goroutine 1 holds lock A, waits for lock B
+
+// Goroutine 2 holds lock B, waits for lock A
+
+// Both goroutines wait forever
+
+// The Solution: Consistent Ordering
+// The fix ensures locks are always acquired in the same order regardless of parameter order:
+func (s *Storage[T]) orderedLock(storages ..._Storage) func() {
+	all := append([]_Storage{s}, storages...)
+
+	// Sort by underlying storage addresses
+	slices.SortFunc(all, func(a, b _Storage) int {
+		if a.getAddr() < b.getAddr() {
+			return -1
+		}
+		return +1
+	})
+	// Lock in sorted order
+	for _, st := range all {
+		st.lock()
+	}
+
+	// Return unlock function (reverse order)
+	return func() {
+		for i := len(all) - 1; i >= 0; i-- {
+			all[i].unlock()
+		}
+	}
+}
+
 func (s *Storage[Component]) lock() {
 	s.mut.Lock()
 }
@@ -64,16 +110,12 @@ func (s *Storage[Component]) unlock() {
 //
 // passing in nil or nothing will return entities that have this storage's component
 func (s *Storage[T]) And(storages ..._Storage) []Entity {
-	s.mut.Lock()
-	defer s.mut.Unlock()
+	unlock := s.orderedLock(storages...)
+	defer unlock()
 	mask := s.b.Clone()
-	s.b.Mu.Lock()
-	defer s.b.Mu.Unlock()
 	if len(storages) > 0 {
 		for _, otherSt := range storages {
 			if otherSt != nil {
-				otherSt.lock()
-				defer otherSt.unlock()
 				mask.And(otherSt.getBitset())
 			}
 		}
@@ -91,8 +133,8 @@ func (s *Storage[T]) And(storages ..._Storage) []Entity {
 //
 // passing in nil or nothing will return the entities with the component this storage stores
 func (s *Storage[T]) ButNot(storages ..._Storage) []Entity {
-	s.mut.Lock()
-	defer s.mut.Unlock()
+	unlock := s.orderedLock(storages...)
+	defer unlock()
 	mask := s.b.Clone()
 	for _, s := range storages {
 		if s != nil {
@@ -133,6 +175,42 @@ func (s *Storage[T]) Get(e Entity) (component T) {
 		return component
 	}
 	return s.components[e]
+}
+
+// get a component, but validate entity generation.
+// you only need to use this if you are storing entities,
+// for example when implementing relationships.
+//
+// get a copy of an entity's component
+// You can then update the entity using
+// Storage[T].UpdateWithGeneration()
+// if the entity is dead, or does not have this component
+// then the returned value will be the zero value of the component
+func (s *Storage[T]) GetWithGeneration(pool *Pool, e Entity, generation uint64) (component T) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	if !IsAliveWithGeneration(pool, e, generation) {
+		return component
+	}
+	return s.components[e]
+}
+
+// get a component, but validate entity generation.
+// you only need to use this if you are storing entities,
+// for example when implementing relationships.
+//
+// get a copy of an entity's component with Storage[T].GetWithGeneration()
+// You can then update the entity using
+// Storage[T].UpdateWithGeneration()
+// if the entity is dead, or does not have this component
+// then the returned value will be the zero value of the component
+func (s *Storage[T]) UpdateWithGeneration(pool *Pool, e Entity, generation uint64, component T) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	if !IsAliveWithGeneration(pool, e, generation) {
+		return
+	}
+	s.components[e] = component
 }
 
 func newStorage[T any](size int) *Storage[T] {
@@ -226,7 +304,7 @@ func NewEntity(p *Pool) Entity {
 	var newEntity = p.freeList[0]
 	p.freeList = p.freeList[1:]
 	//update generation of this entity
-	if int(newEntity) > int(len(p.generations)) {
+	if int(newEntity) > len(p.generations)-1 {
 		//resize generations slice
 		//potentially allowing for +1000 entities
 		p.size = max(p.size, p.size+1000) // we check this because ecs.Add modifies Pool.size
@@ -348,7 +426,7 @@ func Remove[T any](pool *Pool, e Entity) {
 			s[len(s)-1] = s[i]
 			s[i] = last
 			// "delete" last element
-			pool.componentsUsed[e] = s[0 : len(s)-2]
+			pool.componentsUsed[e] = s[0 : len(s)-1]
 			return
 		}
 	}
@@ -383,10 +461,24 @@ func GetStorage[A any](pool *Pool) *Storage[A] {
 func GetGeneration(pool *Pool, e Entity) uint64 {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
-	if int(e) > len(pool.generations) {
+	if int(e) > len(pool.generations)-1 {
 		return 0
 	}
 	return pool.generations[e]
+}
+
+// check if an entity is dead, but also validate it's generation.
+// this is to be used when you are storing entities for example when implementing
+// relationships. You store the entity's generation aswell to avoid
+// operating on reused entities
+func IsAliveWithGeneration(p *Pool, e Entity, generation uint64) bool {
+	p.mut.Lock()
+	defer p.mut.Unlock()
+	valid := GetGeneration(p, e) == generation
+	if valid {
+		return IsAlive(p, e)
+	}
+	return false
 }
 
 // same as public register but also gives the storage
