@@ -45,7 +45,6 @@ func (s *Storage[T]) delete(e Entity) {
 	defer s.mut.Unlock()
 	var zero T
 	s.components[e] = zero
-	s.b.Unset(uint(e))
 }
 func (s *Storage[T]) getBitset() *bitset.BitSet {
 	return &s.b
@@ -72,9 +71,9 @@ func (s *Storage[T]) And(storages ..._Storage) []Entity {
 	defer s.b.Mu.Unlock()
 	if len(storages) > 0 {
 		for _, otherSt := range storages {
-			otherSt.lock()
-			defer otherSt.unlock()
 			if otherSt != nil {
+				otherSt.lock()
+				defer otherSt.unlock()
 				mask.And(otherSt.getBitset())
 			}
 		}
@@ -108,7 +107,7 @@ func (s *Storage[T]) ButNot(storages ..._Storage) []Entity {
 func (st *Storage[T]) Update(e Entity, component T) {
 	st.mut.Lock()
 	defer st.mut.Unlock()
-	if !st.EntityHasComponent(e) {
+	if !st.b.IsSet(uint(e)) {
 		return
 	}
 	st.components[e] = component
@@ -117,6 +116,8 @@ func (st *Storage[T]) Update(e Entity, component T) {
 // check if an Entity has a component
 func (st *Storage[T]) EntityHasComponent(e Entity) bool {
 	//by looking at the bitset of storage
+	st.mut.Lock()
+	defer st.mut.Unlock()
 	return st.b.IsSet(uint(e))
 }
 
@@ -128,7 +129,7 @@ func (st *Storage[T]) EntityHasComponent(e Entity) bool {
 func (s *Storage[T]) Get(e Entity) (component T) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	if !s.EntityHasComponent(e) {
+	if !s.b.IsSet(uint(e)) {
 		return component
 	}
 	return s.components[e]
@@ -235,6 +236,15 @@ func NewEntity(p *Pool) Entity {
 	}
 	// finally update generation
 	p.generations[newEntity] += 1
+	var storagesUsed []_Storage = p.componentsUsed[newEntity]
+	for _, store := range storagesUsed {
+		//zero out the component for this entity
+		store.delete(newEntity)
+	}
+	// entity no longer has these components
+	// set slice length to 0
+	p.componentsUsed[newEntity] = p.componentsUsed[newEntity][:0]
+
 	return newEntity
 }
 
@@ -248,12 +258,11 @@ func Kill(p *Pool, entities ...Entity) {
 		p.freeList = append(p.freeList, e)
 		var storagesUsed []_Storage = p.componentsUsed[e]
 		for _, store := range storagesUsed {
-			//zero out the component for this entity
-			store.delete(e)
+			//mark as dead but dont zero out the component for this entity
+			store.lock()
+			store.getBitset().Unset(uint(e))
+			store.unlock()
 		}
-		// entity no longer has these components
-		// set slice length to 0
-		p.componentsUsed[e] = p.componentsUsed[e][:0]
 	}
 }
 
@@ -294,7 +303,7 @@ func Add[T any](pool *Pool, e Entity, component T) {
 	st := registerAndGetStorage[T](pool)
 	st.mut.Lock()
 	defer st.mut.Unlock()
-	if st.EntityHasComponent(e) {
+	if st.b.IsSet(uint(e)) {
 		return
 	}
 	capacity := cap(st.components)
@@ -318,7 +327,7 @@ func Remove[T any](pool *Pool, e Entity) {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
 	st := registerAndGetStorage[T](pool)
-	if !st.EntityHasComponent(e) {
+	if !st.b.IsSet(uint(e)) {
 		return
 	}
 	st.delete(e)
@@ -354,7 +363,7 @@ func Has[T any](pool *Pool, e Entity) bool {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
 	st := registerAndGetStorage[T](pool)
-	return st.EntityHasComponent(e)
+	return st.b.IsSet(uint(e))
 }
 
 // Check if an entity is alive
