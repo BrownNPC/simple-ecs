@@ -181,42 +181,6 @@ func (s *Storage[T]) Get(e Entity) (component T) {
 	return s.components[e]
 }
 
-// get a component, but validate entity generation.
-// you only need to use this if you are storing entities,
-// for example when implementing relationships.
-//
-// get a copy of an entity's component
-// You can then update the entity using
-// Storage[T].UpdateWithGeneration()
-// if the entity is dead, or does not have this component
-// then the returned value will be the zero value of the component
-func (s *Storage[T]) GetWithGeneration(pool *Pool, e Entity, generation uint64) (component T) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	if !IsAliveWithGeneration(pool, e, generation) {
-		return component
-	}
-	return s.components[e]
-}
-
-// get a component, but validate entity generation.
-// you only need to use this if you are storing entities,
-// for example when implementing relationships.
-//
-// get a copy of an entity's component with Storage[T].GetWithGeneration()
-// You can then update the entity using
-// Storage[T].UpdateWithGeneration()
-// if the entity is dead, or does not have this component
-// then the returned value will be the zero value of the component
-func (s *Storage[T]) UpdateWithGeneration(pool *Pool, e Entity, generation uint64, component T) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	if !IsAliveWithGeneration(pool, e, generation) {
-		return
-	}
-	s.components[e] = component
-}
-
 func newStorage[T any](size int) *Storage[T] {
 	return &Storage[T]{
 		components: make([]T, size),
@@ -256,8 +220,7 @@ type Pool struct {
 	// pool will not autoGrow storages if this is false
 	autoGrow bool
 	// generations track how many times an entity was recycled
-	generations []uint64
-	mut         sync.Mutex
+	mut sync.Mutex
 }
 
 // make a new memory pool of components.
@@ -273,7 +236,6 @@ func New(size int) *Pool {
 	return &Pool{
 		stores:         make(map[any]_Storage),
 		componentsUsed: make(map[Entity][]_Storage),
-		generations:    make([]uint64, size),
 		size:           size,
 	}
 }
@@ -307,17 +269,6 @@ func NewEntity(p *Pool) Entity {
 	// recycle an entity
 	var newEntity = p.freeList[0]
 	p.freeList = p.freeList[1:]
-	//update generation of this entity
-	if int(newEntity) > len(p.generations)-1 {
-		//resize generations slice
-		//potentially allowing for +1000 entities
-		p.size = max(p.size, p.size+1000) // we check this because ecs.Add modifies Pool.size
-		newGens := make([]uint64, p.size)
-		copy(newGens, p.generations)
-		p.generations = newGens
-	}
-	// finally update generation
-	p.generations[newEntity] += 1
 	var storagesUsed []_Storage = p.componentsUsed[newEntity]
 	for _, store := range storagesUsed {
 		//zero out the component for this entity
@@ -461,28 +412,6 @@ func GetStorage[A any](pool *Pool) *Storage[A] {
 	defer pool.mut.Unlock()
 	st := registerAndGetStorage[A](pool)
 	return st
-}
-
-// the generation is the number of times the entity has been recycled
-func GetGeneration(pool *Pool, e Entity) uint64 {
-	pool.mut.Lock()
-	defer pool.mut.Unlock()
-	if int(e) > len(pool.generations)-1 {
-		return 0
-	}
-	return pool.generations[e]
-}
-
-// check if an entity is dead, but also validate it's generation.
-// this is to be used when you are storing entities for example when implementing
-// relationships. You store the entity's generation aswell to avoid
-// operating on reused entities
-func IsAliveWithGeneration(pool *Pool, e Entity, generation uint64) bool {
-	valid := GetGeneration(pool, e) == generation
-	if valid {
-		return pool.aliveEntities.IsSet(uint(e))
-	}
-	return false
 }
 
 // same as public register but also gives the storage
