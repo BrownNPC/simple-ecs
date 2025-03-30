@@ -35,7 +35,7 @@ func TestNewEntityCreation(t *testing.T) {
 	})
 
 	t.Run("Panic when exceeding limit", func(t *testing.T) {
-		poolSize := 3
+		poolSize := 1
 		p := ecs.New(poolSize)
 
 		// Fill pool
@@ -144,26 +144,6 @@ func TestIsAliveCheck(t *testing.T) {
 		if ecs.IsAlive(p, e) {
 			t.Error("Killed entity still marked alive")
 		}
-	})
-}
-
-func TestPoolResize(t *testing.T) {
-	poolSize := 3
-	p := ecs.New(poolSize).EnableGrowing()
-	type Position struct {
-		X, Y float64
-	}
-	type Velocity Position
-	t.Run("should work fine", func(t *testing.T) {
-		for i := 0; i < poolSize; i++ {
-			e := ecs.NewEntity(p)
-			ecs.Add2(p, e, Position{}, Velocity{})
-		}
-	})
-	t.Run("Creating entity should grow pool", func(t *testing.T) {
-		e := ecs.NewEntity(p)
-		ecs.Add(p, e, Position{})
-		ecs.GetStorage[Position](p).Get(e)
 	})
 }
 

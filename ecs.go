@@ -217,8 +217,6 @@ type Pool struct {
 	size int
 	//how many entities are alive
 	length int
-	// pool will not autoGrow storages if this is false
-	autoGrow bool
 	// generations track how many times an entity was recycled
 	mut sync.Mutex
 }
@@ -240,15 +238,6 @@ func New(size int) *Pool {
 	}
 }
 
-// increase the size of the storages when pool runs out of available entities
-// resizing has overhead, you should use a fixed size for the pool instead.
-func (p *Pool) EnableGrowing() *Pool {
-	p.mut.Lock()
-	defer p.mut.Unlock()
-	p.autoGrow = true
-	return p
-}
-
 // Get an entity
 // this will panic if pool does not have entities available
 func NewEntity(p *Pool) Entity {
@@ -256,9 +245,9 @@ func NewEntity(p *Pool) Entity {
 	defer p.mut.Unlock()
 	// if no entities are available for recycling
 	if len(p.freeList) == 0 {
-		if !p.autoGrow && p.length >= p.size {
+		if p.length >= p.size {
 
-			msg := fmt.Sprintf("Entity limit exceeded. please initialize more entities by increasing the number you passed to ecs.New(). OR enable growing of the pool by calling ecs.New(x).EnableGrowing()\nGiven size: %d\n Entity: %d", p.size, p.length+1)
+			msg := fmt.Sprintf("Entity limit exceeded. please initialize more entities by increasing the number you passed to ecs.New(). \nGiven size: %d\n Entity: %d", p.size, p.length+1)
 			panic(msg)
 		}
 		e := Entity(p.length)
@@ -338,16 +327,6 @@ func Add[T any](pool *Pool, e Entity, component T) {
 	defer st.mut.Unlock()
 	if st.b.IsSet(uint(e)) {
 		return
-	}
-	capacity := cap(st.components)
-	if capacity <= int(e) {
-		// resize, potentially allowing for 1000 more entities
-		pool.size = max(pool.size, pool.size+1000)
-		newSt := newStorage[T](pool.size)
-		// the larger array is now the new array for the storage
-		copy(newSt.components, st.components)
-		st.components = newSt.components
-
 	}
 	st.b.Set(uint(e))
 	st.components[e] = component
