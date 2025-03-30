@@ -129,9 +129,8 @@ type Velocity Vec2
 
 func main() {
 	// create a memory pool of component arrays
-	// the pool can hold 1000 entities
-	// but will grow if enabled
-	var pool = ecs.New(1000).EnableGrowing()
+	// the pool can hold a maximum of 1000 alive entities
+	var pool = ecs.New(1000)
 	// create 1000 entities
 	for range 1000 {
 		// entities (which are just ids)
@@ -180,23 +179,19 @@ func MovementSystem(p *ecs.Pool,
 ```
 
 ### When to not use an ECS
-	You dont need ECS if your game is going to be very simple
-	like pong or flappy bird. But if you are making eg. "flappy bird with guns"
-	then ECS makes sense.
+You dont need ECS if your game is going to be very simple
+like pong or flappy bird. But if you are making eg. "flappy bird with guns"
+then ECS makes sense.
+But even if you are using ECS;
 
-	But even if you are using ECS;
+**Everything in your game does not *need* to be an entity.**
+For example. If you are making "Chess with magic spells",
+you might want to represent the board state using a Chess board struct (object)
+and the pieces would probably be entities that have components. and you would
+probably have systems for animations, the timer, magic spells, and maybe
+checking if a piece can move to a square etc.
 
-	
-	**Everything in your game does not *need* to be an entity.**
-	For example. If you are making "Chess with magic spells",
-	you might want to represent the board state using a Chess board struct (object)
-	and the pieces would probably be entities that have components. and you would
-	probably have systems for animations, the timer, magic spells, and maybe
-	checking if a piece can move to a square etc.
-	
-	Your user interface (UI) would probably also not benefit from being entities.
-
-	
+Your user interface (UI) would probably also not benefit from being entities.
 
 ### Motivation:
   The other ECS libraries seem
@@ -209,19 +204,15 @@ func MovementSystem(p *ecs.Pool,
   many ways to do
   the same thing. (eg. Arche has 2 apis)
 
-	But that doesn't mean this library is slow.
-	components are stored in contigious pre-allocated
-	slices of memory, and retreiving of the component
-	storage is an O(1) map lookup (~20 ns).
-
-	Queries are also fast due to the use of Bitsets.
-	queries are just "And" / "AndNot" operations on a couple
-	of integers.
-
+	I made this library to have less features,
+	and sacrifice a little performance
+	for more simplicity.
+	Note: if you care about every nanosecond of performance, dont use my library.
 
 ### Acknowledgements
   Donburi is another library that
   implements ECS with a simple API.
+
 
 ## Running tests
 `go test -count 10 -race ./...`
