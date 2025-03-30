@@ -73,8 +73,12 @@ func (s *Storage[T]) getAddr() uintptr {
 // The Solution: Consistent Ordering
 // The fix ensures locks are always acquired in the same order regardless of parameter order:
 func (s *Storage[T]) orderedLock(storages ..._Storage) func() {
-	all := append([]_Storage{s}, storages...)
-
+	all := make([]_Storage, 0, len(storages)+1)
+	for _, s := range storages {
+		if s != nil {
+			all = append(all, s)
+		}
+	}
 	// Sort by underlying storage addresses
 	slices.SortFunc(all, func(a, b _Storage) int {
 		if a.getAddr() < b.getAddr() {
@@ -375,7 +379,7 @@ type Position = Vec2 // incorrect `))
 func Add[T any](pool *Pool, e Entity, component T) {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
-	if !IsAlive(pool, e) {
+	if !pool.aliveEntities.IsSet(uint(e)) {
 		return
 	}
 	st := registerAndGetStorage[T](pool)
@@ -473,10 +477,10 @@ func GetGeneration(pool *Pool, e Entity) uint64 {
 // this is to be used when you are storing entities for example when implementing
 // relationships. You store the entity's generation aswell to avoid
 // operating on reused entities
-func IsAliveWithGeneration(p *Pool, e Entity, generation uint64) bool {
-	valid := GetGeneration(p, e) == generation
+func IsAliveWithGeneration(pool *Pool, e Entity, generation uint64) bool {
+	valid := GetGeneration(pool, e) == generation
 	if valid {
-		return IsAlive(p, e)
+		return pool.aliveEntities.IsSet(uint(e))
 	}
 	return false
 }

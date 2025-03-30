@@ -186,7 +186,7 @@ func TestConcurrentUnsafeApi(t *testing.T) {
 			}(i)
 		}
 	}(pool)
-	wg.Add(5)
+	wg.Add(1)
 	go func(pool *ecs.Pool) {
 		defer wg.Done()
 		POSITION, VELOCITY := ecs.GetStorage2[Position, Velocity](pool)
