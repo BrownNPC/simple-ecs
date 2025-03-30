@@ -153,12 +153,10 @@ func main() {
 
 // a system is a regular function that
 // operates on the components
-func MovementSystem(p *ecs.Pool,
-	deltaTime float64,
-) {
+func MovementSystem(p *ecs.Pool,	deltaTime float64) {
 	// a storage holds a slice (array) of components
 	POSITION, VELOCITY :=
-		ecs.GetStorage2[
+		ecs.GetStorage2[ // helper function so you dont have to call GetStorage twice
 			Position,
 			Velocity,
 		](p)
