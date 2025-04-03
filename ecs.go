@@ -19,6 +19,9 @@ var AutoRegisterComponents = true
 // they can only be created using ecs.NewEntity()
 type Entity uint32
 
+// Entity 0 is never used
+const UnusedEntity = Entity(0)
+
 // stores slice of components
 /*
 We use a struct called storage to hold the components array.
@@ -43,67 +46,11 @@ type _Storage interface {
 	getAddr() uintptr
 }
 
-func (s *Storage[T]) delete(e Entity) {
+func (s *Storage[Component]) delete(e Entity) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	var zero T
+	var zero Component
 	s.components[e] = zero
-}
-func (s *Storage[T]) getBitset() *bitset.BitSet {
-	return &s.b
-}
-
-// get the memory address, so we can sort storage interfaces
-func (s *Storage[T]) getAddr() uintptr {
-	return uintptr(unsafe.Pointer(s))
-}
-
-// If two goroutines call these methods with reversed storage parameters:
-
-// Goroutine 1: storageA.And(storageB)  // Locks A → B
-// Goroutine 2: storageB.And(storageA)  // Locks B → A
-// This creates a deadlock:
-
-// Goroutine 1 holds lock A, waits for lock B
-
-// Goroutine 2 holds lock B, waits for lock A
-
-// Both goroutines wait forever
-
-// The Solution: Consistent Ordering
-// The fix ensures locks are always acquired in the same order regardless of parameter order:
-func (s *Storage[T]) orderedLock(storages ..._Storage) func() {
-	all := make([]_Storage, 0, len(storages)+1)
-	for _, s := range storages {
-		if s != nil {
-			all = append(all, s)
-		}
-	}
-	// Sort by underlying storage addresses
-	slices.SortFunc(all, func(a, b _Storage) int {
-		if a.getAddr() < b.getAddr() {
-			return -1
-		}
-		return +1
-	})
-	// Lock in sorted order
-	for _, st := range all {
-		st.lock()
-	}
-
-	// Return unlock function (reverse order)
-	return func() {
-		for i := len(all) - 1; i >= 0; i-- {
-			all[i].unlock()
-		}
-	}
-}
-
-func (s *Storage[Component]) lock() {
-	s.mut.Lock()
-}
-func (s *Storage[Component]) unlock() {
-	s.mut.Unlock()
 }
 
 // takes in other storages and returns
@@ -113,7 +60,7 @@ func (s *Storage[Component]) unlock() {
 //	 entities that have all of these components
 //
 // passing in nil or nothing will return entities that have this storage's component
-func (s *Storage[T]) And(storages ..._Storage) []Entity {
+func (s *Storage[Component]) And(storages ..._Storage) []Entity {
 	unlock := s.orderedLock(storages...)
 	defer unlock()
 	mask := s.b.Clone()
@@ -136,7 +83,7 @@ func (s *Storage[T]) And(storages ..._Storage) []Entity {
 //		but not the other ones
 //
 // passing in nil or nothing will return the entities with the component this storage stores
-func (s *Storage[T]) ButNot(storages ..._Storage) []Entity {
+func (s *Storage[Component]) ButNot(storages ..._Storage) []Entity {
 	unlock := s.orderedLock(storages...)
 	defer unlock()
 	mask := s.b.Clone()
@@ -150,7 +97,7 @@ func (s *Storage[T]) ButNot(storages ..._Storage) []Entity {
 
 // set an entity's component
 // this will panic if the entity does not have this component
-func (st *Storage[T]) Update(e Entity, component T) {
+func (st *Storage[Component]) Update(e Entity, component Component) {
 	st.mut.Lock()
 	defer st.mut.Unlock()
 	if !st.b.IsSet(uint(e)) {
@@ -160,7 +107,7 @@ func (st *Storage[T]) Update(e Entity, component T) {
 }
 
 // check if an Entity has a component
-func (st *Storage[T]) EntityHasComponent(e Entity) bool {
+func (st *Storage[Component]) EntityHasComponent(e Entity) bool {
 	//by looking at the bitset of storage
 	st.mut.Lock()
 	defer st.mut.Unlock()
@@ -172,7 +119,7 @@ func (st *Storage[T]) EntityHasComponent(e Entity) bool {
 // Storage[T].Update()
 // if the entity is dead, or does not have this component
 // then the returned value will be the zero value of the component
-func (s *Storage[T]) Get(e Entity) (component T) {
+func (s *Storage[Component]) Get(e Entity) (component Component) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	if !s.b.IsSet(uint(e)) {
@@ -218,7 +165,8 @@ type Pool struct {
 	//how many entities are alive
 	length int
 	// generations track how many times an entity was recycled
-	mut sync.Mutex
+	generations []uint32
+	mut         sync.Mutex
 }
 
 // make a new memory pool of components.
@@ -231,11 +179,14 @@ type Pool struct {
 // how many components your game has and how many
 // entities you allocate
 func New(size int) *Pool {
-	return &Pool{
+	p := &Pool{
 		stores:         make(map[any]_Storage),
 		componentsUsed: make(map[Entity][]_Storage),
-		size:           size,
+		generations:    make([]uint32, size),
+		size:           size + 1,
 	}
+	NewEntity(p) // entity 0 is unused
+	return p
 }
 
 // Get an entity
@@ -266,6 +217,7 @@ func NewEntity(p *Pool) Entity {
 	// entity no longer has these components
 	// set slice length to 0
 	p.componentsUsed[newEntity] = p.componentsUsed[newEntity][:0]
+	p.generations[newEntity] += 1
 
 	return newEntity
 }
@@ -296,13 +248,13 @@ func Kill(p *Pool, entities ...Entity) {
 //
 //	type Position Vec2 // correct
 //	type Position = Vec2 // incorrect
-func Register[T any](pool *Pool) {
+func Register[Component any](pool *Pool) {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
-	var nilptr *T
+	var nilptr *Component
 	_, ok := pool.stores[nilptr]
 	if !ok {
-		pool.stores[nilptr] = newStorage[T](pool.size)
+		pool.stores[nilptr] = newStorage[Component](pool.size)
 		return
 	}
 	panic(fmt.Sprintln("Component", nilptr, `is already registered 
@@ -316,13 +268,13 @@ type Position = Vec2 // incorrect `))
 // add a component to an entity
 // automatically register component if ecs.AutoRegisterComponents
 // is true (default)
-func Add[T any](pool *Pool, e Entity, component T) {
+func Add[Component any](pool *Pool, e Entity, component Component) {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
 	if !pool.aliveEntities.IsSet(uint(e)) {
 		return
 	}
-	st := registerAndGetStorage[T](pool)
+	st := registerAndGetStorage[Component](pool)
 	st.mut.Lock()
 	defer st.mut.Unlock()
 	if st.b.IsSet(uint(e)) {
@@ -335,13 +287,15 @@ func Add[T any](pool *Pool, e Entity, component T) {
 }
 
 // remove a component from an entity
-func Remove[T any](pool *Pool, e Entity) {
+func Remove[Component any](pool *Pool, e Entity) {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
-	st := registerAndGetStorage[T](pool)
+	st := registerAndGetStorage[Component](pool)
+	st.mut.Lock()
 	if !st.b.IsSet(uint(e)) {
 		return
 	}
+	st.mut.Unlock()
 	st.delete(e)
 	var s []_Storage = pool.componentsUsed[e]
 
@@ -370,11 +324,13 @@ func Remove[T any](pool *Pool, e Entity) {
 // shorthand for
 //
 //	POSITION := ecs.GetStorage[Position](pool)
-//	POSITION.EntityHasComponent(e)
-func Has[T any](pool *Pool, e Entity) bool {
+//	POSITION.EntityHasComponent(entity)
+func Has[Component any](pool *Pool, e Entity) bool {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
-	st := registerAndGetStorage[T](pool)
+	st := registerAndGetStorage[Component](pool)
+	st.mut.Lock()
+	defer st.mut.Unlock()
 	return st.b.IsSet(uint(e))
 }
 
@@ -385,28 +341,115 @@ func IsAlive(pool *Pool, e Entity) bool {
 	return pool.aliveEntities.IsSet(uint(e))
 }
 
-// storage contains all components of a type
-func GetStorage[A any](pool *Pool) *Storage[A] {
+// NOTE: Only useful if you are storing entities in components.
+//
+// Check if an entity is alive, given its generation (reuse count).
+//
+// NOTE: check if the entity you were storing is alive with this before running
+// the system on it
+// NOTE: You can get an entity's generation with ecs.GetGeneration.
+func IsAliveWithGeneration(pool *Pool, e Entity, generation uint32) bool {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
-	st := registerAndGetStorage[A](pool)
+	if pool.generations[e] != generation {
+		return false
+	}
+	return pool.aliveEntities.IsSet(uint(e))
+}
+
+// NOTE: Only useful if you are storing entities inside of components.
+//
+// generation is the number of times the entity has been reused.
+//
+// NOTE: also see ecs.IsAliveWithGeneration
+func GetGeneration(pool *Pool, e Entity) (generation uint32) {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
+	if e > Entity(pool.size) {
+		return 0
+	}
+	return pool.generations[e]
+}
+
+// storage contains all components of a type
+func GetStorage[Component any](pool *Pool) *Storage[Component] {
+	pool.mut.Lock()
+	defer pool.mut.Unlock()
+	st := registerAndGetStorage[Component](pool)
 	return st
 }
 
 // same as public register but also gives the storage
 // it will not allocate a new storage if it already exists
 // this will use the pool's mutexes appropriately
-func registerAndGetStorage[T any](pool *Pool) *Storage[T] {
-	var nilptr *T
+func registerAndGetStorage[Component any](pool *Pool) *Storage[Component] {
+	var nilptr *Component
 	st, ok := pool.stores[nilptr]
 	if ok {
-		return st.(*Storage[T])
+		return st.(*Storage[Component])
 	} else if AutoRegisterComponents {
 		// allocate storage
-		var st = newStorage[T](pool.size)
+		var st = newStorage[Component](pool.size)
 		pool.stores[nilptr] = st
 		return st
 	}
-	var zero T
+	var zero Component
 	panic(fmt.Sprintf("Component of type %T was not registered", zero))
+}
+
+func (s *Storage[Component]) getBitset() *bitset.BitSet {
+	return &s.b
+}
+
+// get the memory address, so we can sort storage interfaces
+func (s *Storage[Component]) getAddr() uintptr {
+	return uintptr(unsafe.Pointer(s))
+}
+
+// If two goroutines call these methods with reversed storage parameters:
+
+// Goroutine 1: storageA.And(storageB)  // Locks A → B
+// Goroutine 2: storageB.And(storageA)  // Locks B → A
+// This creates a deadlock:
+
+// Goroutine 1 holds lock A, waits for lock B
+
+// Goroutine 2 holds lock B, waits for lock A
+
+// Both goroutines wait forever
+
+// The Solution: Consistent Ordering
+// The fix ensures locks are always acquired in the same order regardless of parameter order:
+func (s *Storage[Component]) orderedLock(storages ..._Storage) func() {
+	all := make([]_Storage, 0, len(storages)+1)
+	for _, s := range storages {
+		if s != nil {
+			all = append(all, s)
+		}
+	}
+	// Sort by underlying storage addresses
+	slices.SortFunc(all, func(a, b _Storage) int {
+		if a.getAddr() < b.getAddr() {
+			return -1
+		}
+		return +1
+	})
+	// Lock in sorted order
+	for _, st := range all {
+		st.lock()
+	}
+
+	// Return unlock function (reverse order)
+	return func() {
+		for i := len(all) - 1; i >= 0; i-- {
+			all[i].unlock()
+		}
+	}
+}
+
+func (s *Storage[Component]) lock() {
+	s.mut.Lock()
+}
+func (s *Storage[Component]) unlock() {
+	s.mut.Unlock()
 }
