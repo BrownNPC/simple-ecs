@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"sync"
-	"unsafe"
 
 	bitset "github.com/BrownNPC/simple-ecs/internal"
 )
@@ -35,15 +34,20 @@ type Storage[Component any] struct {
 	components []Component
 	// a bitset is used to store which
 	//indexes are occupied by entities
-	b   bitset.BitSet
-	mut sync.Mutex
+	b             bitset.BitSet
+	mut           sync.Mutex
+	registeredNum int // used for sorting, set when the storage is registered by the pool
 }
 type _Storage interface {
 	delete(e Entity)
 	getBitset() *bitset.BitSet
 	lock()
 	unlock()
-	getAddr() uintptr
+	getNum() int
+}
+
+func (s *Storage[Component]) getNum() int {
+	return s.registeredNum
 }
 
 func (s *Storage[Component]) delete(e Entity) {
@@ -128,9 +132,10 @@ func (s *Storage[Component]) Get(e Entity) (component Component) {
 	return s.components[e]
 }
 
-func newStorage[T any](size int) *Storage[T] {
+func newStorage[T any](size int, num int) *Storage[T] {
 	return &Storage[T]{
-		components: make([]T, size),
+		components:    make([]T, size),
+		registeredNum: num,
 	}
 }
 
@@ -161,12 +166,13 @@ type Pool struct {
 	// recycle killed entities
 	freeList []Entity
 	// no. of entities to pre-allocate / max entity count
-	size int
+	maxEntities int
 	//how many entities are alive
-	length int
+	aliveCount int
 	// generations track how many times an entity was recycled
-	generations []uint32
-	mut         sync.Mutex
+	generations   []uint32
+	numComponents int // how many components have been registered so far.
+	mut           sync.Mutex
 }
 
 // make a new memory pool of components.
@@ -183,7 +189,7 @@ func New(size int) *Pool {
 		stores:         make(map[any]_Storage),
 		componentsUsed: make(map[Entity][]_Storage),
 		generations:    make([]uint32, size),
-		size:           size + 1,
+		maxEntities:    size + 1,
 	}
 	NewEntity(p) // entity 0 is unused
 	return p
@@ -196,14 +202,14 @@ func NewEntity(p *Pool) Entity {
 	defer p.mut.Unlock()
 	// if no entities are available for recycling
 	if len(p.freeList) == 0 {
-		if p.length >= p.size {
+		if p.aliveCount >= p.maxEntities {
 
-			msg := fmt.Sprintf("Entity limit exceeded. please initialize more entities by increasing the number you passed to ecs.New(). \nGiven size: %d\n Entity: %d", p.size, p.length+1)
+			msg := fmt.Sprintf("Entity limit exceeded. please initialize more entities by increasing the number you passed to ecs.New(). \nGiven size: %d\n Entity: %d", p.maxEntities, p.aliveCount+1)
 			panic(msg)
 		}
-		e := Entity(p.length)
+		e := Entity(p.aliveCount)
 		p.aliveEntities.Set(uint(e))
-		p.length++
+		p.aliveCount++
 		return e
 	}
 	// recycle an entity
@@ -227,6 +233,9 @@ func Kill(p *Pool, entities ...Entity) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	for _, e := range entities {
+		if e == 0 { // cannot kill entity 0 (unused)
+			continue
+		}
 		p.aliveEntities.Unset(uint(e))
 		//mark the entity as available
 		p.freeList = append(p.freeList, e)
@@ -254,7 +263,8 @@ func Register[Component any](pool *Pool) {
 	var nilptr *Component
 	_, ok := pool.stores[nilptr]
 	if !ok {
-		pool.stores[nilptr] = newStorage[Component](pool.size)
+		pool.stores[nilptr] = newStorage[Component](pool.maxEntities, pool.numComponents)
+		pool.numComponents++
 		return
 	}
 	panic(fmt.Sprintln("Component", nilptr, `is already registered 
@@ -365,7 +375,7 @@ func IsAliveWithGeneration(pool *Pool, e Entity, generation uint32) bool {
 func GetGeneration(pool *Pool, e Entity) (generation uint32) {
 	pool.mut.Lock()
 	defer pool.mut.Unlock()
-	if e > Entity(pool.size) {
+	if e > Entity(pool.maxEntities) {
 		return 0
 	}
 	return pool.generations[e]
@@ -379,7 +389,7 @@ func GetStorage[Component any](pool *Pool) *Storage[Component] {
 	return st
 }
 
-// same as public register but also gives the storage
+// same as public register but also returns the storage.
 // it will not allocate a new storage if it already exists
 // this will use the pool's mutexes appropriately
 func registerAndGetStorage[Component any](pool *Pool) *Storage[Component] {
@@ -389,7 +399,8 @@ func registerAndGetStorage[Component any](pool *Pool) *Storage[Component] {
 		return st.(*Storage[Component])
 	} else if AutoRegisterComponents {
 		// allocate storage
-		var st = newStorage[Component](pool.size)
+		var st = newStorage[Component](pool.maxEntities, pool.numComponents)
+		pool.numComponents++
 		pool.stores[nilptr] = st
 		return st
 	}
@@ -399,11 +410,6 @@ func registerAndGetStorage[Component any](pool *Pool) *Storage[Component] {
 
 func (s *Storage[Component]) getBitset() *bitset.BitSet {
 	return &s.b
-}
-
-// get the memory address, so we can sort storage interfaces
-func (s *Storage[Component]) getAddr() uintptr {
-	return uintptr(unsafe.Pointer(s))
 }
 
 // If two goroutines call these methods with reversed storage parameters:
@@ -429,7 +435,7 @@ func (s *Storage[Component]) orderedLock(storages ..._Storage) func() {
 	}
 	// Sort by underlying storage addresses
 	slices.SortFunc(all, func(a, b _Storage) int {
-		if a.getAddr() < b.getAddr() {
+		if a.getNum() < b.getNum() {
 			return -1
 		}
 		return +1
