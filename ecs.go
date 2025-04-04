@@ -99,15 +99,18 @@ func (s *Storage[Component]) ButNot(storages ..._Storage) []Entity {
 	return bitset.ActiveIndices[Entity](&mask)
 }
 
-// set an entity's component
-// this will panic if the entity does not have this component
+// set an entity's component.
+//
+// NOTE: will do nothing if entity isnt alive or doesnt have this component
 func (st *Storage[Component]) Update(e Entity, component Component) {
 	st.mut.Lock()
 	defer st.mut.Unlock()
 	if !st.b.IsSet(uint(e)) {
 		return
 	}
-	st.components[e] = component
+	if len(st.components) <= int(e) {
+		st.components[e] = component
+	}
 }
 
 // check if an Entity has a component
@@ -428,6 +431,7 @@ func (s *Storage[Component]) getBitset() *bitset.BitSet {
 // The fix ensures locks are always acquired in the same order regardless of parameter order:
 func (s *Storage[Component]) orderedLock(storages ..._Storage) func() {
 	all := make([]_Storage, 0, len(storages)+1)
+	all = append(all, s)
 	for _, s := range storages {
 		if s != nil {
 			all = append(all, s)
