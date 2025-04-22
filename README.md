@@ -101,13 +101,13 @@ type Storage[Component any] struct {
 ```
 The storage struct also has a bitset (like an array of boleans)
 
-each bit in the bitset corresponds to an entity
-by setting the bit on the bitset, we can keep
-a record of whether an entity has the component added to it
+Each bit in the bitset corresponds to an entity.
+By setting the bit on the bitset, we can keep
+a record of whether an entity has the component added to it.
 
 The pool also has its own bitset that tracks which entities are alive
 you dont need to worry about how the pool works, just know that the
-pool is responsible for creating and deleting entities
+pool is responsible for creating and deleting entities.
 
 ## Now here is an example:
 ```go
@@ -153,7 +153,7 @@ func main() {
 
 // a system is a regular function that
 // operates on the components
-func MovementSystem(p *ecs.Pool,	deltaTime float64) {
+func MovementSystem(p *ecs.Pool, deltaTime float64) {
 	// a storage holds a slice (array) of components
 	POSITION, VELOCITY :=
 		ecs.GetStorage2[ // helper function so you dont have to call GetStorage twice
