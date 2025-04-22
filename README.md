@@ -62,8 +62,8 @@ adds the Velocity to the Position of the entity
 ```go
 func MovementSystem(entities []entity){
 	for _ ent := range entities{
-		ent.Position.X = ent.Velocity.X
-		ent.Position.Y = ent.Velocity.Y
+		ent.Position.X += ent.Velocity.X
+		ent.Position.Y += ent.Velocity.Y
 	}
 }
 ```
