@@ -20,7 +20,7 @@ game systems in Go
 
 
 ### What is ECS? (and why you should use it)
-I recommend you watch the first couple minutes of [this](https://youtu.be/9LNgSDP1zrw?t=2m40s)
+I recommend you watch [this](https://www.youtube.com/watch?v=JxI3Eu5DPwE)
 video. feel free to skip around
 or watch at 2x speed
 
