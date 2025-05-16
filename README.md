@@ -13,7 +13,6 @@ game systems in Go
 ### Simple-ECS Features:
 - Easy syntax / api
 - Good perfomance!
-- Easy to understand code (~400 lines)
 - Low level (implement what you need)
 - No Dependencies on other libraries
 - Safe Concurrency
