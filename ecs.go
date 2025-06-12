@@ -16,6 +16,9 @@ type Storage[Component any] struct {
 	ID         int
 	components []Component
 	b          *bitSet
+	//[]Entity from Pool
+	// used for queries
+	parentPoolEntities *sync.Pool
 }
 
 // The pool holds Component slices within storages and tracks entity lifetimes
@@ -23,13 +26,16 @@ type Pool struct {
 	TotalEntities uint32
 	capacity      uint32
 
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	storages    map[any]storage // mapped from nilptr of Component to Storage[Component]
 	allStorages []storage       // used for quickly killing entities, faster than iterating a map
 
 	reusableIDs        []uint32
-	generations        []Generation
-	entityActiveStatus *bitSet
+	generations        []Generation // incremented after every entity is killed. Used to prevent errors when we reuse an entity that the user was storing
+	entityActiveStatus *bitSet      // track which entities are alive= w
+
+	// passed to storages
+	poolEntititySlices sync.Pool // pool of []Entity, used for queries
 }
 
 func New(capacity uint32) (p *Pool) {
@@ -39,6 +45,11 @@ func New(capacity uint32) (p *Pool) {
 	p.storages = make(map[any]storage)
 	p.reusableIDs = make([]Entity, 0, capacity)
 	p.generations = make([]Generation, capacity)
+	p.poolEntititySlices = sync.Pool{
+		New: func() any {
+			return make([]Entity, p.capacity)
+		},
+	}
 	return p
 }
 
@@ -106,17 +117,30 @@ func IsAliveWithGeneration(p *Pool, e Entity, generation Generation) bool {
 
 // Get a component storage, allocate it if not already
 func GetStorage[Component any](p *Pool) *Storage[Component] {
-	var nilptr *Component // key to the storage
+	nilptr := (*Component)(nil) // Key: nil pointer to Component
+
+	p.mu.RLock()
 	st, ok := p.storages[nilptr]
+	p.mu.RUnlock()
 	if ok {
 		return st.(*Storage[Component])
 	}
-	// register the storage
-	newSt := newStorage[Component](p.capacity)
+
+	// Not found, acquire write lock
 	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Double check after acquiring write lock
+	if st, ok := p.storages[nilptr]; ok {
+		return st.(*Storage[Component])
+	}
+
+	// Still not present, safe to create
+	newSt := newStorage[Component](p.capacity)
+	// pass []Entity, used for queries
+	newSt.parentPoolEntities = &p.poolEntititySlices
 	p.storages[nilptr] = newSt
 	p.allStorages = append(p.allStorages, newSt)
-	p.mu.Unlock()
 	return newSt
 }
 

@@ -45,6 +45,7 @@ func (s *Storage[Component]) All() []Entity {
 // All entities that have this component and the other components
 func (s *Storage[Component]) And(others ...storage) []Entity {
 	bits := s.b.Clone()
+	defer bits.Release()
 	for _, s2 := range others {
 		bits.And(s2.bits())
 	}
@@ -54,6 +55,7 @@ func (s *Storage[Component]) And(others ...storage) []Entity {
 // All entities that have this component but not the other components
 func (s *Storage[Component]) ButNot(others ...storage) []Entity {
 	bits := s.b.Clone()
+	defer bits.Release()
 	for _, s2 := range others {
 		bits.AndNot(s2.bits())
 	}
@@ -63,6 +65,7 @@ func (s *Storage[Component]) ButNot(others ...storage) []Entity {
 // All entities that have either components
 func (s *Storage[Component]) Or(others ...storage) []Entity {
 	bits := s.b.Clone()
+	defer bits.Release()
 	for _, s2 := range others {
 		bits.Or(s2.bits())
 	}
